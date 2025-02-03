@@ -531,26 +531,22 @@ if uploaded_file is not None:
         
         trend_analysis = f"""
         **Trend Analizi:**
-        - **Kısa Vadeli (MA20):** {"Yükseliş" if current_price > ma20_last else "Düşüş"} 
-          - Fiyat: ₺{current_price:.2f}, MA20: ₺{ma20_last:.2f}
-          - {"%{:.1f} {} MA20'den" .format(abs((current_price/ma20_last-1)*100), "yukarıda" if current_price > ma20_last else "aşağıda")}
         
-        - **Orta Vadeli (MA50):** {"Yükseliş" if current_price > ma50_last else "Düşüş"}
+        1. **Kısa Vadeli (MA20):** {"Yükseliş" if current_price > ma20_last else "Düşüş"}
+          - MA20: ₺{ma20_last:.2f}
+          - {"%{abs((current_price/ma20_last-1)*100):.1f} {} MA20'den" if current_price > ma20_last else "%{abs((current_price/ma20_last-1)*100):.1f} {} MA20'den".format("yukarıda" if current_price > ma20_last else "aşağıda")}
+        
+        2. **Orta Vadeli (MA50):** {"Yükseliş" if current_price > ma50_last else "Düşüş"}
           - MA50: ₺{ma50_last:.2f}
-          - {"%{:.1f} {} MA50'den" .format(abs((current_price/ma50_last-1)*100), "yukarıda" if current_price > ma50_last else "aşağıda")}
+          - {"%{abs((current_price/ma50_last-1)*100):.1f} {} MA50'den" if current_price > ma50_last else "%{abs((current_price/ma50_last-1)*100):.1f} {} MA50'den".format("yukarıda" if current_price > ma50_last else "aşağıda")}
         
-        - **Uzun Vadeli (MA200):** {"Yükseliş" if current_price > ma200_last else "Düşüş"}
+        3. **Uzun Vadeli (MA200):** {"Yükseliş" if current_price > ma200_last else "Düşüş"}
           - MA200: ₺{ma200_last:.2f}
-          - {"%{:.1f} {} MA200'den" .format(abs((current_price/ma200_last-1)*100), "yukarıda" if current_price > ma200_last else "aşağıda")}
+          - {"%{abs((current_price/ma200_last-1)*100):.1f} {} MA200'den" if current_price > ma200_last else "%{abs((current_price/ma200_last-1)*100):.1f} {} MA200'den".format("yukarıda" if current_price > ma200_last else "aşağıda")}
         
-        **Trend Gücü:** {trend_gucu}
-        """.format(
-            trend_gucu="GÜÇLÜ 💪" if all([current_price > ma20_last > ma50_last > ma200_last]) else 
-                      "ORTA 👍" if current_price > ma20_last and current_price > ma50_last else 
-                      "ZAYIF 👎" if current_price < ma20_last and current_price < ma50_last else 
-                      "BELİRSİZ ⚠️"
-        )
-
+        **Trend Gücü:** {"GÜÇLÜ 💪" if all([current_price > ma20_last > ma50_last > ma200_last]) else "ORTA 👍" if current_price > ma20_last and current_price > ma50_last else "ZAYIF 👎" if current_price < ma20_last and current_price < ma50_last else "BELİRSİZ ⚠️"}
+        """
+        
         st.markdown(trend_analysis)
         
         # Hacim grafiği ve analizi
