@@ -1304,8 +1304,6 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
         return None
 
-{{ ... }}
-
 # Ana uygulama
 if uploaded_file is not None:
     # Dosya adını kontrol et
