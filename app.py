@@ -17,11 +17,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import io
 import base64
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
 
 # Yardımcı fonksiyonlar
 def calculate_technical_indicators(df):
@@ -543,14 +538,12 @@ if uploaded_file is not None:
           - MA200: ₺{ma200_last:.2f}
           - {"%{:.1f} {} MA200'den" .format(abs((current_price/ma200_last-1)*100), "yukarıda" if current_price > ma200_last else "aşağıda")}
         
-        **Trend Gücü:** {trend_gucu}
-        """.format(
-            trend_gucu="GÜÇLÜ 💪" if all([current_price > ma20_last > ma50_last > ma200_last]) else 
-                      "ORTA 👍" if current_price > ma20_last and current_price > ma50_last else 
-                      "ZAYIF 👎" if current_price < ma20_last and current_price < ma50_last else 
-                      "BELİRSİZ ⚠️"
-        )
-
+        **Trend Gücü:** {}
+        """.format("GÜÇLÜ 💪" if all([current_price > ma20_last > ma50_last > ma200_last]) else 
+                  "ORTA 👍" if current_price > ma20_last and current_price > ma50_last else 
+                  "ZAYIF 👎" if current_price < ma20_last and current_price < ma50_last else 
+                  "BELİRSİZ ⚠️")
+        
         st.markdown(trend_analysis)
         
         # Hacim grafiği ve analizi
@@ -1152,168 +1145,137 @@ if uploaded_file is not None:
             f"{df['close'].iloc[-1] * (1 - risk_metrics['VaR_95']):.2f}"
         ))
 
-        # 10. PDF RAPORU
-        st.header("10. PDF Raporu")
+        # 9. PDF RAPORU
+        st.header("9. PDF Raporu")
         
-        try:
-            # PDF oluştur
-            pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
-            
-            if pdf_buffer:
-                # PDF'i indir butonu
-                st.download_button(
-                    label="📥 PDF Raporu İndir",
-                    data=pdf_buffer,
-                    file_name=f"{hisse_adi}_analiz_raporu_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                    mime="application/pdf",
-                    key="download_pdf",
-                    help="Analiz raporunu PDF formatında indirmek için tıklayın"
-                )
-                st.success("✅ PDF raporu başarıyla oluşturuldu! İndirmek için yukarıdaki butona tıklayın.")
-            else:
-                st.error("❌ PDF raporu oluşturulamadı. Lütfen tekrar deneyin.")
-                
-        except Exception as e:
-            st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
-            st.info("Lütfen tekrar deneyin veya destek ekibiyle iletişime geçin.")
+        # PDF oluştur
+        pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
+        
+        # PDF'i indir butonu
+        st.download_button(
+            label="📥 PDF Raporu İndir",
+            data=pdf_buffer,
+            file_name=f"{hisse_adi}_analiz_raporu_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+            mime="application/pdf"
+        )
 
 def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
     """PDF raporu oluşturur"""
-    # PDF buffer oluştur
     buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
     
-    try:
-        # PDF dokümanı oluştur
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        styles = getSampleStyleSheet()
-        story = []
-        
-        # Başlık
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=24,
-            spaceAfter=30
-        )
-        story.append(Paragraph(f"{hisse_adi} Hisse Analiz Raporu", title_style))
-        story.append(Spacer(1, 12))
-        
-        # Tarih
-        date_style = ParagraphStyle(
-            'DateStyle',
-            parent=styles['Normal'],
-            fontSize=12,
-            textColor=colors.gray
-        )
-        story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", date_style))
-        story.append(Spacer(1, 20))
-        
-        # Genel Durum
-        story.append(Paragraph("1. Genel Durum", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        
-        general_data = [
-            ["Metrik", "Değer"],
-            ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}"],
-            ["Trend", summary['trend']],
-            ["Risk Durumu", summary['risk_durumu']],
-            ["MACD Sinyali", summary['macd_signal']],
-            ["Bollinger", summary['bollinger_signal']]
-        ]
-        
-        t = Table(general_data, colWidths=[200, 300])
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
-        
-        # Risk Analizi
-        story.append(Paragraph("2. Risk Analizi", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        
-        risk_data = [
-            ["Metrik", "Değer"],
-            ["Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}"],
-            ["VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.1f}"],
-            ["Volatilite", f"%{risk_metrics['Volatilite']*100:.1f}"],
-            ["Maximum Drawdown", f"%{risk_metrics['Max Drawdown']*100:.1f}"]
-        ]
-        
-        t = Table(risk_data, colWidths=[200, 300])
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
-        
-        # İstatistiksel Analiz
-        story.append(Paragraph("3. İstatistiksel Analiz", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        
-        stats_data = [
-            ["Metrik", "Değer"],
-            ["Ortalama Getiri", f"%{stats_results['Ortalama Getiri']*100:.2f}"],
-            ["Standart Sapma", f"%{stats_results['Standart Sapma']*100:.2f}"],
-            ["Çarpıklık", f"{stats_results['Çarpıklık']:.2f}"],
-            ["Basıklık", f"{stats_results['Basıklık']:.2f}"]
-        ]
-        
-        t = Table(stats_data, colWidths=[200, 300])
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        story.append(t)
-        
-        # PDF oluştur
-        doc.build(story)
-        buffer.seek(0)
-        return buffer
-        
-    except Exception as e:
-        st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
-        return None
+    # Başlık
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        spaceAfter=30
+    )
+    story.append(Paragraph(f"{hisse_adi} Hisse Analiz Raporu", title_style))
+    story.append(Spacer(1, 12))
+    
+    # Tarih
+    date_style = ParagraphStyle(
+        'DateStyle',
+        parent=styles['Normal'],
+        fontSize=12,
+        textColor=colors.gray
+    )
+    story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", date_style))
+    story.append(Spacer(1, 20))
+    
+    # Genel Durum
+    story.append(Paragraph("1. Genel Durum", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    general_data = [
+        ["Metrik", "Değer"],
+        ["Trend", summary['Genel Trend']],
+        ["Risk Durumu", summary['Risk Durumu']],
+        ["MACD Sinyali", summary['MACD Sinyali']],
+        ["Bollinger", summary['Bollinger']]
+    ]
+    
+    t = Table(general_data, colWidths=[200, 300])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 20))
+    
+    # Teknik Göstergeler
+    story.append(Paragraph("2. Teknik Göstergeler", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    technical_data = [
+        ["Gösterge", "Değer"],
+        ["RSI", summary['RSI Durumu']],
+        ["Volatilite", summary['Volatilite']],
+        ["Hacim", summary['Hacim Durumu']]
+    ]
+    
+    t = Table(technical_data, colWidths=[200, 300])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 20))
+    
+    # Risk Analizi
+    story.append(Paragraph("3. Risk Analizi", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    risk_data = [
+        ["Metrik", "Değer"],
+        ["Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}"],
+        ["VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.1f}"],
+        ["Volatilite", f"%{risk_metrics['Volatilite']*100:.1f}"],
+        ["Maximum Drawdown", f"%{risk_metrics['Max Drawdown']*100:.1f}"]
+    ]
+    
+    t = Table(risk_data, colWidths=[200, 300])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    story.append(t)
+    
+    # PDF oluştur
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
 
-{{ ... }}
-
-# Ana uygulama
-if uploaded_file is not None:
-    # Dosya adını kontrol et
-    if not uploaded_file.name.startswith(hisse_adi):
-        st.error(f"Lütfen {hisse_adi} ile başlayan bir CSV dosyası yükleyin!")
-    else:
-        # CSV dosyasını oku ve analizleri yap
-        df = pd.read_csv(uploaded_file)
-        # ... diğer analizler ...
 else:
     st.info(f"Lütfen önce hisse adını girin ve ardından {hisse_adi if hisse_adi else 'hisse adı'} ile başlayan CSV dosyasını yükleyin.")
+
