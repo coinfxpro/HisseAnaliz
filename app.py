@@ -1080,7 +1080,7 @@ if uploaded_file is not None:
         if patterns['Otokorelasyon']:
             st.info("ℹ Fiyat hareketlerinde süreklilik tespit edildi")
         if patterns['Trend Gücü'] > 1:
-            st.warning(f"⚠ Güçlü trend (z-skor: {patterns['Trend Gücü']:.2f})")
+            st.warning(f"⚠️ Güçlü trend (z-skor: {patterns['Trend Gücü']:.2f})")
         if patterns['Döngüsel Hareket'] > 0.2:
             st.info("ℹ Döngüsel hareket tespit edildi")
             
