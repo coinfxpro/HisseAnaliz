@@ -17,11 +17,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import io
 import base64
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
 
 # Yardımcı fonksiyonlar
 def calculate_technical_indicators(df):
@@ -1150,30 +1145,19 @@ if uploaded_file is not None:
             f"{df['close'].iloc[-1] * (1 - risk_metrics['VaR_95']):.2f}"
         ))
 
-        # 10. PDF RAPORU
-        st.header("10. PDF Raporu")
+        # 9. PDF RAPORU
+        st.header("9. PDF Raporu")
         
-        try:
-            # PDF oluştur
-            pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
-            
-            if pdf_buffer:
-                # PDF'i indir butonu
-                st.download_button(
-                    label="📥 PDF Raporu İndir",
-                    data=pdf_buffer,
-                    file_name=f"{hisse_adi}_analiz_raporu_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                    mime="application/pdf",
-                    key="download_pdf",
-                    help="Analiz raporunu PDF formatında indirmek için tıklayın"
-                )
-                st.success("✅ PDF raporu başarıyla oluşturuldu! İndirmek için yukarıdaki butona tıklayın.")
-            else:
-                st.error("❌ PDF raporu oluşturulamadı. Lütfen tekrar deneyin.")
-                
-        except Exception as e:
-            st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
-            st.info("Lütfen tekrar deneyin veya destek ekibiyle iletişime geçin.")
+        # PDF oluştur
+        pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
+        
+        # PDF'i indir butonu
+        st.download_button(
+            label="📥 PDF Raporu İndir",
+            data=pdf_buffer,
+            file_name=f"{hisse_adi}_analiz_raporu_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+            mime="application/pdf"
+        )
 
 def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
     """PDF raporu oluşturur"""
@@ -1294,3 +1278,4 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
 
 else:
     st.info(f"Lütfen önce hisse adını girin ve ardından {hisse_adi if hisse_adi else 'hisse adı'} ile başlayan CSV dosyasını yükleyin.")
+
