@@ -37,8 +37,8 @@ if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
         
         # Tarih sütununu düzenle
-        df['date'] = pd.to_datetime(df['date'])
-        df.set_index('date', inplace=True)
+        df['time'] = pd.to_datetime(df['time'], unit='s')  # Unix timestamp'i datetime'a çevir
+        df.set_index('time', inplace=True)
 
         # Temel istatistikler
         st.header("Temel İstatistikler")
