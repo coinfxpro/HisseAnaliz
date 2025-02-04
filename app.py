@@ -250,8 +250,8 @@ def analyze_volume_scenarios(df, predictions):
     """Hacim senaryolarını analiz eder"""
     try:
         # Hacim durumu analizi
-        avg_volume = df['Volume'].mean()
-        current_volume = df['Volume'].iloc[-1]
+        avg_volume = df['Volume'].mean()  # Volume büyük harfle
+        current_volume = df['Volume'].iloc[-1]  # Volume büyük harfle
         volume_change = ((current_volume - avg_volume) / avg_volume) * 100
         
         # Hacim durumu belirleme
@@ -314,8 +314,8 @@ def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
         bb_status = "NORMAL ✅"
     
     # Hacim analizi
-    volume_avg = df['Volume'].mean()
-    current_volume = df['Volume'].iloc[-1]
+    volume_avg = df['Volume'].mean()  # Volume büyük harfle
+    current_volume = df['Volume'].iloc[-1]  # Volume büyük harfle
     volume_status = "YÜKSEK 💪" if current_volume > volume_avg * 1.5 else \
                    "DÜŞÜK 👎" if current_volume < volume_avg * 0.5 else \
                    "NORMAL 👍"
@@ -1142,30 +1142,212 @@ if uploaded_file is not None:
             "Yüksek" if patterns['Otokorelasyon'] and stats_results['Normallik p-değeri'] > 0.05 else "Düşük"
         ))
 
-        # 9. FİBONACCİ ANALİZİ
-        st.header("9. FİBONACCİ ANALİZİ")
+        # 9. RİSK ANALİZİ
+        st.header("9. RİSK ANALİZİ")
         
-        # Fibonacci seviyeleri hesapla
-        high = df['high'].max()
-        low = df['low'].min()
-        fib_levels = calculate_fibonacci_levels(high, low)
-        
-        # Fibonacci seviyelerini göster
         col1, col2 = st.columns(2)
+        
         with col1:
-            for level, value in fib_levels.items():
-                st.write(f"{level}: ₺{value:.2f}")
-
-        # Fibonacci analizi
-        current_price = df['close'].iloc[-1]
-        next_support = max([v for v in fib_levels.values() if v < current_price], default=low)
-        next_resistance = min([v for v in fib_levels.values() if v > current_price], default=high)
-
+            st.metric("Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}")
+            st.metric("Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}")
+            
         with col2:
-            st.write("**Fibonacci Analizi:**")
-            st.write(f"Mevcut Fiyat: ₺{current_price:.2f}")
-            st.write(f"Sonraki Destek: ₺{next_support:.2f}")
-            st.write(f"Sonraki Direnç: ₺{next_resistance:.2f}")
+            st.metric("Value at Risk (%95)", f"₺{risk_metrics['VaR_95']:.2f}")
+            st.metric("Maksimum Kayıp", f"%{risk_metrics['VaR_99']*100:.2f}")
+        
+        # Risk analizi yorumları
+        st.subheader("9.1 Risk Analizi Yorumları")
+        
+        # Volatilite yorumu
+        if risk_metrics['Volatilite'] > 0.3:
+            st.warning("⚠ Yüksek volatilite: Riskli yatırım ortamı")
+        elif risk_metrics['Volatilite'] > 0.15:
+            st.info("ℹ️ Normal volatilite: Orta risk seviyesi")
+        else:
+            st.success("✅ Düşük volatilite: Düşük risk seviyesi")
+            
+        # Sharpe oranı yorumu
+        if risk_metrics['Sharpe Oranı'] > 1:
+            st.success("✅ Yüksek Sharpe oranı: Risk/getiri dengesi iyi")
+        elif risk_metrics['Sharpe Oranı'] > 0:
+            st.info("ℹ️ Orta Sharpe oranı: Risk/getiri dengesi normal")
+        else:
+            st.warning("⚠️ Düşük Sharpe oranı: Risk/getiri dengesi zayıf")
+            
+        # VaR yorumu
+        var_pct = risk_metrics['VaR_95'] / df['close'].iloc[-1] * 100
+        st.info(f"ℹ️ %95 güven aralığında maksimum %{var_pct:.2f} kayıp beklentisi")
+        
+        # Maksimum kayıp yorumu
+        if risk_metrics['VaR_99'] > 0.2:
+            st.warning("⚠️ Yüksek maksimum kayıp: Dikkatli pozisyon alınmalı")
+        else:
+            st.success("✅ Kabul edilebilir maksimum kayıp seviyesi")
+            
+        st.markdown("""
+        **Risk Analizi Özeti:**
+        1. **Genel Risk Seviyesi:** {}
+        2. **Yatırım Potansiyeli:** {}
+        3. **Pozisyon Önerisi:** {}
+        4. **Risk Yönetimi:** Stop-loss seviyesi ₺{} olarak belirlenebilir
+        """.format(
+            "Yüksek" if risk_metrics['Volatilite'] > 0.3 or risk_metrics['VaR_99'] > 0.2 else "Orta" if risk_metrics['Volatilite'] > 0.15 else "Düşük",
+            "İyi" if risk_metrics['Sharpe Oranı'] > 1 else "Orta" if risk_metrics['Sharpe Oranı'] > 0 else "Zayıf",
+            "Küçük pozisyon" if risk_metrics['Volatilite'] > 0.3 else "Normal pozisyon",
+            f"{df['close'].iloc[-1] * (1 - risk_metrics['VaR_95']):.2f}"
+        ))
+
+        # 10. PDF RAPORU
+        st.header("10. PDF Raporu")
+        
+        try:
+            # PDF oluştur
+            pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
+            
+            if pdf_buffer:
+                # PDF'i indir butonu
+                st.download_button(
+                    label="📥 PDF Raporu İndir",
+                    data=pdf_buffer,
+                    file_name=f"{hisse_adi}_analiz_raporu_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                    mime="application/pdf",
+                    key="download_pdf",
+                    help="Analiz raporunu PDF formatında indirmek için tıklayın"
+                )
+                st.success("✅ PDF raporu başarıyla oluşturuldu! İndirmek için yukarıdaki butona tıklayın.")
+            else:
+                st.error("❌ PDF raporu oluşturulamadı. Lütfen tekrar deneyin.")
+                
+        except Exception as e:
+            st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
+            st.info("Lütfen tekrar deneyin veya destek ekibiyle iletişime geçin.")
+
+def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
+    """PDF raporu oluşturur"""
+    # PDF buffer oluştur
+    buffer = io.BytesIO()
+    
+    try:
+        # PDF dokümanı oluştur
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Başlık
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30
+        )
+        story.append(Paragraph(f"{hisse_adi} Hisse Analiz Raporu", title_style))
+        story.append(Spacer(1, 12))
+        
+        # Tarih
+        date_style = ParagraphStyle(
+            'DateStyle',
+            parent=styles['Normal'],
+            fontSize=12,
+            textColor=colors.gray
+        )
+        story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", date_style))
+        story.append(Spacer(1, 20))
+        
+        # Genel Durum
+        story.append(Paragraph("1. Genel Durum", styles['Heading2']))
+        story.append(Spacer(1, 12))
+        
+        general_data = [
+            ["Metrik", "Değer"],
+            ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}"],
+            ["Trend", summary['trend']],
+            ["Risk Durumu", summary['risk_durumu']],
+            ["MACD Sinyali", summary['macd_signal']],
+            ["Bollinger", summary['bollinger_signal']]
+        ]
+        
+        t = Table(general_data, colWidths=[200, 300])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 20))
+        
+        # Risk Analizi
+        story.append(Paragraph("2. Risk Analizi", styles['Heading2']))
+        story.append(Spacer(1, 12))
+        
+        risk_data = [
+            ["Metrik", "Değer"],
+            ["Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}"],
+            ["VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.1f}"],
+            ["Volatilite", f"%{risk_metrics['Volatilite']*100:.1f}"],
+            ["Maximum Drawdown", f"%{risk_metrics['Max Drawdown']*100:.1f}"]
+        ]
+        
+        t = Table(risk_data, colWidths=[200, 300])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 20))
+        
+        # İstatistiksel Analiz
+        story.append(Paragraph("3. İstatistiksel Analiz", styles['Heading2']))
+        story.append(Spacer(1, 12))
+        
+        stats_data = [
+            ["Metrik", "Değer"],
+            ["Ortalama Getiri", f"%{stats_results['Ortalama Getiri']*100:.2f}"],
+            ["Standart Sapma", f"%{stats_results['Standart Sapma']*100:.2f}"],
+            ["Çarpıklık", f"{stats_results['Çarpıklık']:.2f}"],
+            ["Basıklık", f"{stats_results['Basıklık']:.2f}"]
+        ]
+        
+        t = Table(stats_data, colWidths=[200, 300])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(t)
+        
+        # PDF oluştur
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+        
+    except Exception as e:
+        st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
+        return None
 
 # Ana uygulama
 if uploaded_file is not None:
@@ -1185,3 +1367,5 @@ if uploaded_file is not None:
         st.stop()
 else:
     st.info(f"Lütfen önce hisse adını girin ve ardından {hisse_adi if hisse_adi else 'hisse adı'} ile başlayan CSV dosyasını yükleyin.")
+
+
