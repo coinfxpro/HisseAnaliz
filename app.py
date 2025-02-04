@@ -492,14 +492,16 @@ def create_technical_charts(df):
     return rsi_fig, macd_fig
 
 def calculate_fibonacci_levels(high, low):
-    """Fibonacci düzeltme seviyelerini hesaplar"""
+    """Fibonacci seviyelerini hesaplar"""
     diff = high - low
     levels = {
-        "0.236 Seviyesi": low + diff * 0.236,
-        "0.382 Seviyesi": low + diff * 0.382,
-        "0.500 Seviyesi": low + diff * 0.500,
-        "0.618 Seviyesi": low + diff * 0.618,
-        "0.786 Seviyesi": low + diff * 0.786
+        'Yüksek': high,
+        '0.786': low + diff * 0.786,
+        '0.618': low + diff * 0.618,
+        '0.5': low + diff * 0.5,
+        '0.382': low + diff * 0.382,
+        '0.236': low + diff * 0.236,
+        'Düşük': low
     }
     return levels
 
@@ -1200,154 +1202,183 @@ if uploaded_file is not None:
         # 10. PDF RAPORU
         st.header("10. PDF Raporu")
         
-        try:
-            with st.spinner("PDF raporu hazırlanıyor..."):
-                # PDF oluştur
-                pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
-                
-                if pdf_buffer:
-                    # PDF'i indir butonu
+        if st.button("PDF Raporu İndir"):
+            try:
+                pdf_data = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
+                if pdf_data:
                     st.download_button(
-                        label="📥 Analiz Raporunu İndir (PDF)",
-                        data=pdf_buffer,
-                        file_name=f"{hisse_adi}_analiz_raporu_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                        mime="application/pdf",
-                        key="download_pdf",
-                        help="Tüm analiz sonuçlarını içeren PDF raporunu indirmek için tıklayın"
+                        label="PDF'i İndir",
+                        data=pdf_data,
+                        file_name=f"{hisse_adi}_analiz_raporu.pdf",
+                        mime="application/pdf"
                     )
-                    st.success("✅ PDF raporu başarıyla hazırlandı! İndirmek için yukarıdaki butona tıklayın.")
-                else:
-                    st.error("❌ PDF raporu oluşturulamadı.")
-                    
-        except Exception as e:
-            st.error(f"PDF raporu oluşturulurken bir hata oluştu: {str(e)}")
+            except Exception as e:
+                st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
             
 def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
-    """PDF raporu oluşturur"""
-    # PDF buffer oluştur
-    buffer = io.BytesIO()
-    
+    """Analiz raporunu HTML olarak oluşturur ve PDF'e dönüştürür"""
     try:
-        # PDF dokümanı oluştur
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        styles = getSampleStyleSheet()
-        story = []
+        # HTML içeriği oluştur
+        html_content = f"""
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>{hisse_adi} Hisse Analiz Raporu</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; padding: 20px; }}
+                h1 {{ color: #1f77b4; text-align: center; }}
+                h2 {{ color: #2c3e50; margin-top: 30px; }}
+                .section {{ margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }}
+                .metric {{ margin: 10px 0; }}
+                .warning {{ color: #e74c3c; }}
+                .success {{ color: #27ae60; }}
+                table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
+                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+                th {{ background-color: #f8f9fa; }}
+                tr:nth-child(even) {{ background-color: #f2f2f2; }}
+            </style>
+        </head>
+        <body>
+            <h1>{hisse_adi} Hisse Analiz Raporu</h1>
+            <p style="text-align: center;">Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+            
+            <div class="section">
+                <h2>1. Teknik Analiz</h2>
+                <table>
+                    <tr>
+                        <th>Gösterge</th>
+                        <th>Değer</th>
+                        <th>Sinyal</th>
+                    </tr>
+                    <tr>
+                        <td>Son Fiyat</td>
+                        <td>₺{df['close'].iloc[-1]:.2f}</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>RSI</td>
+                        <td>{summary['RSI Durumu']}</td>
+                        <td>{summary['RSI Durumu']}</td>
+                    </tr>
+                    <tr>
+                        <td>MACD</td>
+                        <td>{summary['MACD Sinyali']}</td>
+                        <td>{summary['MACD Sinyali']}</td>
+                    </tr>
+                    <tr>
+                        <td>Bollinger</td>
+                        <td>{summary['Bollinger']}</td>
+                        <td>{summary['Bollinger']}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>2. Risk Analizi</h2>
+                <table>
+                    <tr>
+                        <th>Metrik</th>
+                        <th>Değer</th>
+                    </tr>
+                    <tr>
+                        <td>Volatilite</td>
+                        <td>%{risk_metrics['Volatilite']*100:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Sharpe Oranı</td>
+                        <td>{risk_metrics['Sharpe Oranı']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>VaR (%95)</td>
+                        <td>₺{risk_metrics['VaR_95']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Maksimum Kayıp</td>
+                        <td>%{risk_metrics['VaR_99']*100:.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>3. İstatistiksel Analiz</h2>
+                <table>
+                    <tr>
+                        <th>Metrik</th>
+                        <th>Değer</th>
+                    </tr>
+                    <tr>
+                        <td>Otokorelasyon</td>
+                        <td>%{stats_results['Otokorelasyon']*100:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Çarpıklık</td>
+                        <td>{stats_results['Çarpıklık']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Basıklık</td>
+                        <td>{stats_results['Basıklık']:.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>4. Tahminler</h2>
+                <table>
+                    <tr>
+                        <th>Dönem</th>
+                        <th>Tahmini Fiyat</th>
+                    </tr>
+                    <tr>
+                        <td>1 Gün</td>
+                        <td>₺{predictions['Tahmin Edilen Kapanış']:.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>5. Fibonacci Seviyeleri</h2>
+                <table>
+                    <tr>
+                        <th>Seviye</th>
+                        <th>Fiyat</th>
+                    </tr>
+                    {generate_fibonacci_levels_html(df)}
+                </table>
+            </div>
+        </body>
+        </html>
+        """
         
-        # Başlık
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=24,
-            spaceAfter=30
-        )
-        story.append(Paragraph(f"{hisse_adi} Hisse Analiz Raporu", title_style))
-        story.append(Spacer(1, 12))
+        # HTML'i geçici dosyaya kaydet
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+            f.write(html_content)
+            temp_path = f.name
+            
+        # HTML'i PDF'e dönüştür
+        from weasyprint import HTML
+        pdf = HTML(filename=temp_path).write_pdf()
         
-        # Tarih
-        date_style = ParagraphStyle(
-            'DateStyle',
-            parent=styles['Normal'],
-            fontSize=12,
-            textColor=colors.gray
-        )
-        story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", date_style))
-        story.append(Spacer(1, 20))
+        # Geçici dosyayı sil
+        import os
+        os.unlink(temp_path)
         
-        # Genel Durum
-        story.append(Paragraph("1. Genel Durum", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        
-        general_data = [
-            ["Metrik", "Değer"],
-            ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}"],
-            ["Trend", summary['trend']],
-            ["Risk Durumu", summary['risk_durumu']],
-            ["MACD Sinyali", summary['macd_signal']],
-            ["Bollinger", summary['bollinger_signal']]
-        ]
-        
-        t = Table(general_data, colWidths=[200, 300])
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
-        
-        # Risk Analizi
-        story.append(Paragraph("2. Risk Analizi", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        
-        risk_data = [
-            ["Metrik", "Değer"],
-            ["Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}"],
-            ["VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.1f}"],
-            ["Volatilite", f"%{risk_metrics['Volatilite']*100:.1f}"],
-            ["Maximum Drawdown", f"%{risk_metrics['Max Drawdown']*100:.1f}"]
-        ]
-        
-        t = Table(risk_data, colWidths=[200, 300])
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
-        
-        # İstatistiksel Analiz
-        story.append(Paragraph("3. İstatistiksel Analiz", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        
-        stats_data = [
-            ["Metrik", "Değer"],
-            ["Ortalama Getiri", f"%{stats_results['Ortalama Getiri']*100:.2f}"],
-            ["Standart Sapma", f"%{stats_results['Standart Sapma']*100:.2f}"],
-            ["Çarpıklık", f"{stats_results['Çarpıklık']:.2f}"],
-            ["Basıklık", f"{stats_results['Basıklık']:.2f}"]
-        ]
-        
-        t = Table(stats_data, colWidths=[200, 300])
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        story.append(t)
-        
-        # PDF oluştur
-        doc.build(story)
-        buffer.seek(0)
-        return buffer
+        return pdf
         
     except Exception as e:
         st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
         return None
+
+def generate_fibonacci_levels_html(df):
+    """Fibonacci seviyelerini HTML formatında oluşturur"""
+    high = df['high'].max()
+    low = df['low'].min()
+    levels = calculate_fibonacci_levels(high, low)
+    
+    html = ""
+    for level, value in levels.items():
+        html += f"<tr><td>{level}</td><td>₺{value:.2f}</td></tr>"
+    return html
 
 # Ana uygulama
 if uploaded_file is not None:
