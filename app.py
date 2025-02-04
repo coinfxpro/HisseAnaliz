@@ -1345,9 +1345,9 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         buffer.seek(0)
         return buffer
         
-    except Exception as e:
-        st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
-        return None
+    //except Exception as e:
+    //    st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
+    //    return None
 
 # Ana uygulama
 if uploaded_file is not None:
@@ -1359,9 +1359,9 @@ if uploaded_file is not None:
             if df.empty:
                 st.error("Yüklenen CSV dosyası boş!")
                 st.stop()
-    except pd.errors.EmptyDataError:
-        st.error("Yüklenen dosya boş veya geçersiz bir CSV formatında!")
-        st.stop()
+    //except pd.errors.EmptyDataError:
+    //    st.error("Yüklenen dosya boş veya geçersiz bir CSV formatında!")
+    //    st.stop()
     except Exception as e:
         st.error(f"Dosya okuma hatası: {str(e)}")
         st.stop()
