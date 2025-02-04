@@ -576,13 +576,19 @@ if uploaded_file is not None:
         # Dosya içeriğini oku
         df = pd.read_csv(uploaded_file)
         
+        # Debug: CSV sütunlarını göster
+        st.write("CSV Sütunları:", df.columns.tolist())
+        
         # Boş dosya kontrolü
         if df.empty:
             st.error("Yüklenen CSV dosyası boş!")
             st.stop()
-            
+        
+        # Sütun isimlerini küçük harfe çevir
+        df.columns = df.columns.str.lower()
+        
         # Tarih sütununu kontrol et ve düzelt
-        date_columns = ['Date', 'date', 'Tarih', 'tarih', 'time', 'Time', 'Timestamp', 'timestamp']
+        date_columns = ['date', 'tarih', 'time', 'timestamp', 'datetime']
         found_date_column = None
         
         for col in date_columns:
@@ -592,33 +598,39 @@ if uploaded_file is not None:
         
         if found_date_column:
             # Tarih sütununu yeniden adlandır
-            df = df.rename(columns={found_date_column: 'Date'})
+            df = df.rename(columns={found_date_column: 'date'})
         else:
             st.error("CSV dosyasında tarih sütunu bulunamadı! Tarih sütunu şunlardan biri olmalıdır: " + ", ".join(date_columns))
             st.stop()
-            
+        
         # Gerekli sütunları kontrol et
-        required_columns = ['open', 'high', 'low', 'close', 'Volume']
+        required_columns = ['open', 'high', 'low', 'close', 'volume']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
             st.error(f"CSV dosyasında eksik sütunlar var: {', '.join(missing_columns)}")
             st.stop()
-            
+        
         # Tarihi index olarak ayarla
         try:
             # Unix timestamp kontrolü
-            if df['Date'].dtype == 'int64' or df['Date'].dtype == 'float64':
-                df['Date'] = pd.to_datetime(df['Date'], unit='s')
+            if df['date'].dtype == 'int64' or df['date'].dtype == 'float64':
+                df['date'] = pd.to_datetime(df['date'], unit='s')
             else:
-                df['Date'] = pd.to_datetime(df['Date'])
+                df['date'] = pd.to_datetime(df['date'])
             
-            df.set_index('Date', inplace=True)
+            df.set_index('date', inplace=True)
+            
+            # Sütun isimlerini büyük harfe çevir
+            df = df.rename(columns={'volume': 'Volume'})
             
         except Exception as e:
             st.error(f"Tarih sütunu dönüştürülürken hata oluştu: {str(e)}")
             st.info("Lütfen tarih sütununun doğru formatta olduğundan emin olun.")
             st.stop()
+        
+        # Debug: Son DataFrame yapısını göster
+        st.write("DataFrame Yapısı:", df.head())
         
         # Teknik göstergeleri hesapla
         df = calculate_technical_indicators(df)
