@@ -445,6 +445,18 @@ def create_technical_charts(df):
     
     return rsi_fig, macd_fig
 
+def calculate_fibonacci_levels(high, low):
+    """Fibonacci düzeltme seviyelerini hesaplar"""
+    diff = high - low
+    levels = {
+        "0.236 Seviyesi": low + diff * 0.236,
+        "0.382 Seviyesi": low + diff * 0.382,
+        "0.500 Seviyesi": low + diff * 0.500,
+        "0.618 Seviyesi": low + diff * 0.618,
+        "0.786 Seviyesi": low + diff * 0.786
+    }
+    return levels
+
 # Streamlit sayfa yapılandırması
 st.set_page_config(
     page_title="Hisse Senedi Analizi",
