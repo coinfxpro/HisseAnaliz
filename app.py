@@ -25,6 +25,37 @@ from sklearn.ensemble import GradientBoostingRegressor
 import base64
 from reportlab.lib.units import inch
 
+def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
+    """PDF raporu oluşturur"""
+    try:
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Başlık
+        title = Paragraph(f"{hisse_adi} Hisse Analiz Raporu", styles['Title'])
+        story.append(title)
+        story.append(Spacer(1, 20))
+        
+        # Özet Bilgiler
+        story.append(Paragraph("1. Özet Bilgiler", styles['Heading1']))
+        text = f"""
+        Son Kapanış: ₺{df['close'].iloc[-1]:.2f}
+        Günlük Değişim: %{((df['close'].iloc[-1] / df['close'].iloc[-2]) - 1) * 100:.2f}
+        Hacim: {df['Volume'].iloc[-1]:,.0f}
+        """
+        story.append(Paragraph(text, styles['Normal']))
+        
+        # PDF oluştur
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+        
+    except Exception as e:
+        st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
+        return None
+
 # Yardımcı fonksiyonlar
 def calculate_technical_indicators(df):
     # Temel hesaplamalar
@@ -1208,37 +1239,6 @@ if uploaded_file is not None:
 
         # 10. PDF RAPORU
         st.header("10. PDF Raporu")
-
-        def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
-            """PDF raporu oluşturur"""
-            try:
-                buffer = io.BytesIO()
-                doc = SimpleDocTemplate(buffer, pagesize=letter)
-                styles = getSampleStyleSheet()
-                story = []
-                
-                # Başlık
-                title = Paragraph(f"{hisse_adi} Hisse Analiz Raporu", styles['Title'])
-                story.append(title)
-                story.append(Spacer(1, 20))
-                
-                # Özet Bilgiler
-                story.append(Paragraph("1. Özet Bilgiler", styles['Heading1']))
-                text = f"""
-                Son Kapanış: ₺{df['close'].iloc[-1]:.2f}
-                Günlük Değişim: %{((df['close'].iloc[-1] / df['close'].iloc[-2]) - 1) * 100:.2f}
-                Hacim: {df['Volume'].iloc[-1]:,.0f}
-                """
-                story.append(Paragraph(text, styles['Normal']))
-                
-                # PDF oluştur
-                doc.build(story)
-                buffer.seek(0)
-                return buffer
-                
-            except Exception as e:
-                st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
-                return None
 
         try:
             # PDF oluştur
