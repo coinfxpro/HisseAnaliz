@@ -197,6 +197,13 @@ def predict_next_day_values(df):
 def generate_alternative_scenarios(df, predictions):
     """Alternatif senaryolar oluşturur"""
     try:
+        # Hacim durumu analizi
+        avg_volume = df['Volume'].mean()
+        current_volume = df['Volume'].iloc[-1]
+        volume_change = ((current_volume - avg_volume) / avg_volume) * 100
+        
+        volume_status = "Düşük Hacim" if volume_change < -25 else "Yüksek Hacim" if volume_change > 25 else "Normal Hacim"
+        
         # Yüksek hacim senaryosu
         yuksek_hacim = {
             'Tahmin Edilen Kapanış': predictions['Tahmin Edilen Kapanış'] * 1.02,  # %2 daha yüksek
@@ -213,7 +220,11 @@ def generate_alternative_scenarios(df, predictions):
         
         return {
             'Yüksek_Hacim': yuksek_hacim,
-            'Düşük_Hacim': dusuk_hacim
+            'Düşük_Hacim': dusuk_hacim,
+            'Hacim_Durumu': {
+                'Durum': volume_status,
+                'Değişim': volume_change
+            }
         }
     except Exception as e:
         st.error(f"Senaryo hesaplanırken bir hata oluştu: {str(e)}")
@@ -228,6 +239,10 @@ def generate_alternative_scenarios(df, predictions):
                 'Tahmin Edilen Kapanış': predictions['Son Kapanış'] * 0.98,
                 'Son Kapanış': predictions['Son Kapanış'],
                 'Değişim': -2.0
+            },
+            'Hacim_Durumu': {
+                'Durum': 'Normal Hacim',
+                'Değişim': 0.0
             }
         }
 
