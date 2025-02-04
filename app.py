@@ -1284,11 +1284,9 @@ if uploaded_file is not None:
                     help="Analiz raporunu PDF formatında indirmek için tıklayın"
                 )
                 st.success("✅ PDF raporu başarıyla oluşturuldu! İndirmek için yukarıdaki butona tıklayın.")
-            return True
             
         except Exception as e:
             st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
-            return False
 
 def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
     try:
@@ -1375,11 +1373,9 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
                 help="Analiz raporunu PDF formatında indirmek için tıklayın"
             )
             st.success("✅ PDF raporu başarıyla oluşturuldu! İndirmek için yukarıdaki butona tıklayın.")
-        return True
         
     except Exception as e:
         st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
-        return False
 
 # Ana uygulama
 if uploaded_file is not None:
@@ -1399,3 +1395,9 @@ if uploaded_file is not None:
         st.stop()
 else:
     st.info(f"Lütfen önce hisse adını girin ve ardından {hisse_adi if hisse_adi else 'hisse adı'} ile başlayan CSV dosyasını yükleyin.")
+
+# 10. PDF RAPORU
+st.header("10. PDF Raporu")
+        
+# PDF raporunu oluştur
+create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
