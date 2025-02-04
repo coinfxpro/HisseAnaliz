@@ -581,8 +581,24 @@ if uploaded_file is not None:
             st.error("Yüklenen CSV dosyası boş!")
             st.stop()
             
+        # Tarih sütununu kontrol et ve düzelt
+        date_columns = ['Date', 'date', 'Tarih', 'tarih', 'time', 'Time', 'Timestamp', 'timestamp']
+        found_date_column = None
+        
+        for col in date_columns:
+            if col in df.columns:
+                found_date_column = col
+                break
+        
+        if found_date_column:
+            # Tarih sütununu yeniden adlandır
+            df = df.rename(columns={found_date_column: 'Date'})
+        else:
+            st.error("CSV dosyasında tarih sütunu bulunamadı! Tarih sütunu şunlardan biri olmalıdır: " + ", ".join(date_columns))
+            st.stop()
+            
         # Gerekli sütunları kontrol et
-        required_columns = ['Date', 'open', 'high', 'low', 'close', 'Volume']
+        required_columns = ['open', 'high', 'low', 'close', 'Volume']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
@@ -590,8 +606,19 @@ if uploaded_file is not None:
             st.stop()
             
         # Tarihi index olarak ayarla
-        df['Date'] = pd.to_datetime(df['Date'])
-        df.set_index('Date', inplace=True)
+        try:
+            # Unix timestamp kontrolü
+            if df['Date'].dtype == 'int64' or df['Date'].dtype == 'float64':
+                df['Date'] = pd.to_datetime(df['Date'], unit='s')
+            else:
+                df['Date'] = pd.to_datetime(df['Date'])
+            
+            df.set_index('Date', inplace=True)
+            
+        except Exception as e:
+            st.error(f"Tarih sütunu dönüştürülürken hata oluştu: {str(e)}")
+            st.info("Lütfen tarih sütununun doğru formatta olduğundan emin olun.")
+            st.stop()
         
         # Teknik göstergeleri hesapla
         df = calculate_technical_indicators(df)
