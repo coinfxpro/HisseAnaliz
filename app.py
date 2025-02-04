@@ -1351,13 +1351,20 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
 
 # Ana uygulama
 if uploaded_file is not None:
-    # Dosya adını kontrol et
-    if not uploaded_file.name.startswith(hisse_adi):
-        st.error(f"Lütfen {hisse_adi} ile başlayan bir CSV dosyası yükleyin!")
-    else:
-        # CSV dosyasını oku ve analizleri yap
-        df = pd.read_csv(uploaded_file)
-        # ... diğer analizler ...
+    try:
+        if not uploaded_file.name.startswith(hisse_adi):
+            st.error(f"Lütfen {hisse_adi} ile başlayan bir CSV dosyası yükleyin!")
+        else:
+            df = pd.read_csv(uploaded_file)
+            if df.empty:
+                st.error("Yüklenen CSV dosyası boş!")
+                st.stop()
+    except pd.errors.EmptyDataError:
+        st.error("Yüklenen dosya boş veya geçersiz bir CSV formatında!")
+        st.stop()
+    except Exception as e:
+        st.error(f"Dosya okuma hatası: {str(e)}")
+        st.stop()
 else:
     st.info(f"Lütfen önce hisse adını girin ve ardından {hisse_adi if hisse_adi else 'hisse adı'} ile başlayan CSV dosyasını yükleyin.")
 
