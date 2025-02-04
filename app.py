@@ -1202,18 +1202,13 @@ if uploaded_file is not None:
         # 10. PDF RAPORU
         st.header("10. PDF Raporu")
         
-        if st.button("PDF Raporu İndir"):
-            try:
-                pdf_data = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
-                if pdf_data:
-                    st.download_button(
-                        label="PDF'i İndir",
-                        data=pdf_data,
-                        file_name=f"{hisse_adi}_analiz_raporu.pdf",
-                        mime="application/pdf"
-                    )
-            except Exception as e:
-                st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
+        st.write("### Fibonacci Seviyeleri")
+        levels = calculate_fibonacci_levels(df['high'].max(), df['low'].min())
+        for level, value in levels.items():
+            st.write(f"{level}: ₺{value:.2f}")
+                
+        # Grafik Gösterimi
+        st.write("### Fiyat Grafiği")
             
 def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
     """Analiz raporunu HTML olarak oluşturur ve PDF'e dönüştürür"""
