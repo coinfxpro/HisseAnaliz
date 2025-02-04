@@ -1346,7 +1346,7 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         return buffer
         
     except Exception as e:
-        st.error(f" ")
+        st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
         return None
 
 # Ana uygulama
