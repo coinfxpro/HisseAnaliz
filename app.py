@@ -1208,7 +1208,38 @@ if uploaded_file is not None:
 
         # 10. PDF RAPORU
         st.header("10. PDF Raporu")
-        
+
+        def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
+            """PDF raporu oluşturur"""
+            try:
+                buffer = io.BytesIO()
+                doc = SimpleDocTemplate(buffer, pagesize=letter)
+                styles = getSampleStyleSheet()
+                story = []
+                
+                # Başlık
+                title = Paragraph(f"{hisse_adi} Hisse Analiz Raporu", styles['Title'])
+                story.append(title)
+                story.append(Spacer(1, 20))
+                
+                # Özet Bilgiler
+                story.append(Paragraph("1. Özet Bilgiler", styles['Heading1']))
+                text = f"""
+                Son Kapanış: ₺{df['close'].iloc[-1]:.2f}
+                Günlük Değişim: %{((df['close'].iloc[-1] / df['close'].iloc[-2]) - 1) * 100:.2f}
+                Hacim: {df['Volume'].iloc[-1]:,.0f}
+                """
+                story.append(Paragraph(text, styles['Normal']))
+                
+                # PDF oluştur
+                doc.build(story)
+                buffer.seek(0)
+                return buffer
+                
+            except Exception as e:
+                st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
+                return None
+
         try:
             # PDF oluştur
             pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
@@ -1231,74 +1262,6 @@ if uploaded_file is not None:
             st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
             st.info("Lütfen tekrar deneyin veya destek ekibiyle iletişime geçin.")
 
-def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
-    """PDF raporu oluşturur"""
-    try:
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        styles = getSampleStyleSheet()
-        story = []
-        
-        # Başlık
-        title = Paragraph(f"{hisse_adi} Hisse Analiz Raporu", styles['Title'])
-        story.append(title)
-        story.append(Spacer(1, 20))
-        
-        # Özet Bilgiler
-        story.append(Paragraph("1. Özet Bilgiler", styles['Heading1']))
-        text = f"""
-        Son Kapanış: ₺{df['close'].iloc[-1]:.2f}
-        Günlük Değişim: %{((df['close'].iloc[-1] / df['close'].iloc[-2]) - 1) * 100:.2f}
-        Hacim: {df['Volume'].iloc[-1]:,.0f}
-        """
-        story.append(Paragraph(text, styles['Normal']))
-        
-        # PDF oluştur
-        doc.build(story)
-        buffer.seek(0)
-        return buffer
-        
-    except Exception as e:
-        st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
-        return None
-
-# Ana uygulama
-st.set_page_config(
-    page_title="Hisse Senedi Analizi",
-    page_icon="📈",
-    layout="wide"
-)
-
-st.title("📈 Hisse Senedi Analizi")
-
-# Dosya yükleme
-uploaded_file = st.file_uploader("CSV Dosyası Yükle", type=['csv'])
-
-if uploaded_file is not None:
-    try:
-        # Dosya içeriğini oku
-        df = pd.read_csv(uploaded_file)
-        
-        # Boş dosya kontrolü
-        if df.empty:
-            st.error("Yüklenen CSV dosyası boş!")
-            st.stop()
-            
-        # Gerekli sütunları kontrol et
-        required_columns = ['Date', 'open', 'high', 'low', 'close', 'Volume']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        
-        if missing_columns:
-            st.error(f"CSV dosyasında eksik sütunlar var: {', '.join(missing_columns)}")
-            st.stop()
-            
-        # Tarihi index olarak ayarla
-        df['Date'] = pd.to_datetime(df['Date'])
-        df.set_index('Date', inplace=True)
-        
-        # Analizlere devam et...
-        # ... diğer analizler ...
-        
     except pd.errors.EmptyDataError:
         st.error("Yüklenen CSV dosyası boş veya geçersiz!")
         st.stop()
