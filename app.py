@@ -564,8 +564,8 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         story.append(Spacer(1, 12))
         stats_data = [
             ["Metrik", "Değer"],
-            ["Ortalama Getiri", f"%{stats_results['Günlük Getiri']*100:.2f}"],
-            ["Standart Sapma", f"%{stats_results['Standart Sapma']*100:.2f}"],
+            ["Ortalama Getiri", f"%{stats_results['Otokorelasyon']*100:.2f}"],
+            ["Standart Sapma", f"%{risk_metrics['Volatilite']*100:.2f}"],
             ["Çarpıklık", f"{stats_results['Çarpıklık']:.2f}"],
             ["Basıklık", f"{stats_results['Basıklık']:.2f}"]
         ]
@@ -1373,8 +1373,8 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         story.append(Spacer(1, 12))
         stats_data = [
             ["Metrik", "Değer"],
-            ["Ortalama Getiri", f"%{stats_results['Günlük Getiri']*100:.2f}"],
-            ["Standart Sapma", f"%{stats_results['Standart Sapma']*100:.2f}"],
+            ["Ortalama Getiri", f"%{stats_results['Otokorelasyon']*100:.2f}"],
+            ["Standart Sapma", f"%{risk_metrics['Volatilite']*100:.2f}"],
             ["Çarpıklık", f"{stats_results['Çarpıklık']:.2f}"],
             ["Basıklık", f"{stats_results['Basıklık']:.2f}"]
         ]
