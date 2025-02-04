@@ -1220,7 +1220,7 @@ if uploaded_file is not None:
                     st.error("❌ PDF raporu oluşturulamadı.")
                     
         except Exception as e:
-            st.error("PDF raporu oluşturulurken bir hata oluştu.")
+            st.error(f"PDF raporu oluşturulurken bir hata oluştu: {str(e)}")
             
 def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
     """PDF raporu oluşturur"""
