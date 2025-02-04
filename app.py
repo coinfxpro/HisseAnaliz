@@ -1,13 +1,22 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import yfinance as yf
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
 from scipy import stats
+import matplotlib.pyplot as plt
+import seaborn as sns
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+import io
+from PIL import Image as PILImage
+import base64
+from reportlab.lib.units import inch
 from statsmodels.tsa.stattools import adfuller
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
@@ -17,15 +26,6 @@ from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.stattools import acf
-import yfinance as yf
-import io
-import base64
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-
 # Yardımcı fonksiyonlar
 def calculate_technical_indicators(df):
     # Temel hesaplamalar
@@ -1199,8 +1199,29 @@ if uploaded_file is not None:
 
         # 10. PDF RAPORU
         st.header("10. PDF Raporu")
-        st.info("PDF raporu özelliği şu anda kullanılamıyor.")
-
+        
+        try:
+            with st.spinner("PDF raporu hazırlanıyor..."):
+                # PDF oluştur
+                pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
+                
+                if pdf_buffer:
+                    # PDF'i indir butonu
+                    st.download_button(
+                        label="📥 Analiz Raporunu İndir (PDF)",
+                        data=pdf_buffer,
+                        file_name=f"{hisse_adi}_analiz_raporu_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                        mime="application/pdf",
+                        key="download_pdf",
+                        help="Tüm analiz sonuçlarını içeren PDF raporunu indirmek için tıklayın"
+                    )
+                    st.success("✅ PDF raporu başarıyla hazırlandı! İndirmek için yukarıdaki butona tıklayın.")
+                else:
+                    st.error("❌ PDF raporu oluşturulamadı.")
+                    
+        except Exception as e:
+            st.error("PDF raporu oluşturulurken bir hata oluştu.")
+            
 def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
     """PDF raporu oluşturur"""
     # PDF buffer oluştur
