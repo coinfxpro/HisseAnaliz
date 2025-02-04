@@ -250,8 +250,8 @@ def analyze_volume_scenarios(df, predictions):
     """Hacim senaryolarını analiz eder"""
     try:
         # Hacim durumu analizi
-        avg_volume = df['Volume'].mean()  # Volume büyük harfle
-        current_volume = df['Volume'].iloc[-1]  # Volume büyük harfle
+        avg_volume = df['Volume'].mean()
+        current_volume = df['Volume'].iloc[-1]
         volume_change = ((current_volume - avg_volume) / avg_volume) * 100
         
         # Hacim durumu belirleme
@@ -314,8 +314,8 @@ def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
         bb_status = "NORMAL ✅"
     
     # Hacim analizi
-    volume_avg = df['Volume'].mean()  # Volume büyük harfle
-    current_volume = df['Volume'].iloc[-1]  # Volume büyük harfle
+    volume_avg = df['Volume'].mean()
+    current_volume = df['Volume'].iloc[-1]
     volume_status = "YÜKSEK 💪" if current_volume > volume_avg * 1.5 else \
                    "DÜŞÜK 👎" if current_volume < volume_avg * 0.5 else \
                    "NORMAL 👍"
@@ -550,7 +550,7 @@ if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
         
         # Tarih sütununu düzenle
-        df['time'] = pd.to_datetime(df['time'], unit='s')
+        df['time'] = pd.to_datetime(df['time'])
         df.set_index('time', inplace=True)
         
         # Teknik göstergeleri hesapla
@@ -1361,3 +1361,35 @@ if uploaded_file is not None:
 else:
     st.info(f"Lütfen önce hisse adını girin ve ardından {hisse_adi if hisse_adi else 'hisse adı'} ile başlayan CSV dosyasını yükleyin.")
 
+# Dosya kontrolü
+if uploaded_file is not None:
+    try:
+        # Dosya içeriğini oku
+        df = pd.read_csv(uploaded_file)
+        
+        # Boş dosya kontrolü
+        if df.empty:
+            st.error("Yüklenen CSV dosyası boş!")
+            st.stop()
+            
+        # Sütun isimlerini kontrol et
+        required_columns = ['time', 'open', 'high', 'low', 'close', 'Volume']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            st.error(f"CSV dosyasında eksik sütunlar var: {', '.join(missing_columns)}")
+            st.stop()
+            
+        # Tarihi index olarak ayarla
+        try:
+            df['time'] = pd.to_datetime(df['time'])
+            df.set_index('time', inplace=True)
+            
+        except Exception as e:
+            st.error(f"Tarih sütunu dönüştürülürken hata oluştu: {str(e)}")
+            st.info("Lütfen tarih sütununun doğru formatta olduğundan emin olun.")
+            st.stop()
+        
+        # Teknik göstergeleri hesapla
+        df = calculate_technical_indicators(df)
+        {{ ... }}
