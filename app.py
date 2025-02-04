@@ -195,43 +195,41 @@ def predict_next_day_values(df):
         }
 
 def generate_alternative_scenarios(df, predictions):
-    # Temel tahminler
-    base_predictions = predictions.copy()
-    
-    # Yüksek hacim senaryosu (normal hacmin 1.5 katı)
-    high_volume_scenario = {
-        'open': base_predictions['open'] * 1.01,  # %1 daha yüksek
-        'high': base_predictions['high'] * 1.02,  # %2 daha yüksek
-        'low': base_predictions['low'] * 0.995,   # %0.5 daha düşük
-        'close': base_predictions['close'] * 1.015 # %1.5 daha yüksek
-    }
-    
-    # Düşük hacim senaryosu (normal hacmin yarısı)
-    low_volume_scenario = {
-        'open': base_predictions['open'] * 0.995,  # %0.5 daha düşük
-        'high': base_predictions['high'] * 0.99,   # %1 daha düşük
-        'low': base_predictions['low'] * 0.98,     # %2 daha düşük
-        'close': base_predictions['close'] * 0.99   # %1 daha düşük
-    }
-    
-    # Hacim durumu analizi
-    avg_volume = df['Volume'].mean()
-    current_volume = df['Volume'].iloc[-1]
-    volume_change = ((current_volume - avg_volume) / avg_volume) * 100
-    
-    volume_status = "Düşük Hacim" if volume_change < -25 else "Yüksek Hacim" if volume_change > 25 else "Normal Hacim"
-    
-    scenarios = {
-        'Temel': base_predictions,
-        'Yüksek_Hacim': high_volume_scenario,
-        'Düşük_Hacim': low_volume_scenario,
-        'Hacim_Durumu': {
-            'Durum': volume_status,
-            'Değişim': volume_change
+    """Alternatif senaryolar oluşturur"""
+    try:
+        # Yüksek hacim senaryosu
+        yuksek_hacim = {
+            'Tahmin Edilen Kapanış': predictions['Tahmin Edilen Kapanış'] * 1.02,  # %2 daha yüksek
+            'Son Kapanış': predictions['Son Kapanış'],
+            'Değişim': ((predictions['Tahmin Edilen Kapanış'] * 1.02 - predictions['Son Kapanış']) / predictions['Son Kapanış']) * 100
         }
-    }
-    
-    return scenarios
+        
+        # Düşük hacim senaryosu
+        dusuk_hacim = {
+            'Tahmin Edilen Kapanış': predictions['Tahmin Edilen Kapanış'] * 0.98,  # %2 daha düşük
+            'Son Kapanış': predictions['Son Kapanış'],
+            'Değişim': ((predictions['Tahmin Edilen Kapanış'] * 0.98 - predictions['Son Kapanış']) / predictions['Son Kapanış']) * 100
+        }
+        
+        return {
+            'Yüksek_Hacim': yuksek_hacim,
+            'Düşük_Hacim': dusuk_hacim
+        }
+    except Exception as e:
+        st.error(f"Senaryo hesaplanırken bir hata oluştu: {str(e)}")
+        # Hata durumunda varsayılan senaryolar
+        return {
+            'Yüksek_Hacim': {
+                'Tahmin Edilen Kapanış': predictions['Son Kapanış'] * 1.02,
+                'Son Kapanış': predictions['Son Kapanış'],
+                'Değişim': 2.0
+            },
+            'Düşük_Hacim': {
+                'Tahmin Edilen Kapanış': predictions['Son Kapanış'] * 0.98,
+                'Son Kapanış': predictions['Son Kapanış'],
+                'Değişim': -2.0
+            }
+        }
 
 def analyze_volume_scenarios(df, predictions):
     avg_volume = df['Volume'].mean()
