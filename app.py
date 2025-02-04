@@ -527,9 +527,9 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         technical_data = [
             ["Gösterge", "Değer", "Sinyal"],
             ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}", "-"],
-            ["RSI", f"{summary['rsi']:.2f}", summary['rsi_signal']],
-            ["MACD", f"{summary['macd']:.2f}", summary['macd_signal']],
-            ["Bollinger", f"₺{summary['bollinger_middle']:.2f}", summary['bollinger_signal']]
+            ["RSI", f"{summary['RSI']:.2f}", summary['RSI_signal']],
+            ["MACD", f"{summary['MACD']:.2f}", summary['MACD_signal']],
+            ["Bollinger", f"₺{summary['Bollinger_middle']:.2f}", summary['Bollinger_signal']]
         ]
         t = Table(technical_data)
         t.setStyle(TableStyle([
@@ -1336,9 +1336,9 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         technical_data = [
             ["Gösterge", "Değer", "Sinyal"],
             ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}", "-"],
-            ["RSI", f"{summary['rsi']:.2f}", summary['rsi_signal']],
-            ["MACD", f"{summary['macd']:.2f}", summary['macd_signal']],
-            ["Bollinger", f"₺{summary['bollinger_middle']:.2f}", summary['bollinger_signal']]
+            ["RSI", f"{summary['RSI']:.2f}", summary['RSI_signal']],
+            ["MACD", f"{summary['MACD']:.2f}", summary['MACD_signal']],
+            ["Bollinger", f"₺{summary['Bollinger_middle']:.2f}", summary['Bollinger_signal']]
         ]
         t = Table(technical_data)
         t.setStyle(TableStyle([
