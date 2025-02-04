@@ -55,6 +55,23 @@ def calculate_technical_indicators(df):
     
     return df
 
+def calculate_rsi(prices, period=14):
+    """RSI (Göreceli Güç Endeksi) hesaplar"""
+    # Fiyat değişimlerini hesapla
+    delta = prices.diff()
+    
+    # Pozitif ve negatif değişimleri ayır
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    
+    # RS hesapla
+    rs = gain / loss
+    
+    # RSI hesapla
+    rsi = 100 - (100 / (1 + rs))
+    
+    return rsi
+
 def calculate_risk_metrics(df):
     returns = df['Daily_Return'].dropna() / 100  # Yüzdeyi ondalığa çevir
     
