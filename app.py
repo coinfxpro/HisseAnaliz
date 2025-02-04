@@ -505,100 +505,66 @@ def calculate_fibonacci_levels(high, low):
     }
     return levels
 
-def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
-    """PDF raporu oluşturur"""
-    buffer = io.BytesIO()
-    
+def create_pdf_report(hisse_adi):
+    """Streamlit sayfasının tamamını PDF'e dönüştürür"""
     try:
-        # PDF dokümanı oluştur
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        styles = getSampleStyleSheet()
-        story = []
+        # Geçici HTML dosyası oluştur
+        html_content = f"""
+        <html>
+        <head>
+            <title>{hisse_adi} Hisse Analiz Raporu</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; }}
+                h1, h2 {{ color: #1f77b4; }}
+                .metric {{ 
+                    margin: 10px 0;
+                    padding: 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 5px;
+                }}
+                .warning {{ color: #ff7f0e; }}
+                .success {{ color: #2ca02c; }}
+                table {{ 
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 10px 0;
+                }}
+                th, td {{
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }}
+                th {{ background-color: #f2f2f2; }}
+            </style>
+        </head>
+        <body>
+            <h1>{hisse_adi} Hisse Analiz Raporu</h1>
+            <div id="content"></div>
+        </body>
+        </html>
+        """
         
-        # Başlık
-        story.append(Paragraph(f"{hisse_adi} Hisse Analiz Raporu", styles['Heading1']))
-        story.append(Spacer(1, 12))
-        story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['Normal']))
-        story.append(Spacer(1, 20))
+        # Geçici dosyaları oluştur
+        temp_html = "temp_report.html"
+        temp_pdf = f"{hisse_adi}_analiz_raporu.pdf"
         
-        # Teknik Analiz
-        story.append(Paragraph("1. Teknik Analiz", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        technical_data = [
-            ["Gösterge", "Değer", "Sinyal"],
-            ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}", "-"],
-            ["RSI", f"{summary['RSI Durumu']}", "-"],
-            ["MACD", f"{summary['MACD Sinyali']}", "-"],
-            ["Bollinger", f"₺{summary['Bollinger']}", "-"]
-        ]
-        t = Table(technical_data)
-        t.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
+        with open(temp_html, "w", encoding="utf-8") as f:
+            f.write(html_content)
         
-        # Risk Analizi
-        story.append(Paragraph("2. Risk Analizi", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        risk_data = [
-            ["Metrik", "Değer"],
-            ["Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}"],
-            ["Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}"],
-            ["VaR (%95)", f"₺{risk_metrics['VaR_95']:.2f}"],
-            ["Maksimum Kayıp", f"%{risk_metrics['VaR_99']*100:.2f}"]
-        ]
-        t = Table(risk_data)
-        t.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
+        # HTML'i PDF'e dönüştür
+        import pdfkit
+        pdfkit.from_file(temp_html, temp_pdf)
         
-        # İstatistiksel Analiz
-        story.append(Paragraph("3. İstatistiksel Analiz", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        stats_data = [
-            ["Metrik", "Değer"],
-            ["Ortalama Getiri", f"%{stats_results['Otokorelasyon']*100:.2f}"],
-            ["Standart Sapma", f"%{risk_metrics['Volatilite']*100:.2f}"],
-            ["Çarpıklık", f"{stats_results['Çarpıklık']:.2f}"],
-            ["Basıklık", f"{stats_results['Basıklık']:.2f}"]
-        ]
-        t = Table(stats_data)
-        t.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
+        # PDF'i oku
+        with open(temp_pdf, "rb") as f:
+            pdf_data = f.read()
         
-        # Tahminler
-        story.append(Paragraph("4. Tahminler", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        predictions_data = [
-            ["Dönem", "Tahmini Fiyat"],
-            ["1 Gün", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}"],
-            ["1 Hafta", f"₺{predictions['Tahmin Edilen Kapanış']*1.02:.2f}"],
-            ["1 Ay", f"₺{predictions['Tahmin Edilen Kapanış']*1.05:.2f}"]
-        ]
-        t = Table(predictions_data)
-        t.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
-        ]))
-        story.append(t)
+        # Geçici dosyaları temizle
+        import os
+        os.remove(temp_html)
+        os.remove(temp_pdf)
         
-        # PDF oluştur
-        doc.build(story)
-        buffer.seek(0)
-        return buffer
+        return pdf_data
         
     except Exception as e:
         st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
@@ -1303,111 +1269,77 @@ if uploaded_file is not None:
         
         if st.button("PDF Raporu İndir"):
             try:
-                pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
-                if pdf_buffer:
+                pdf_data = create_pdf_report(hisse_adi)
+                if pdf_data:
                     st.download_button(
                         label="PDF'i İndir",
-                        data=pdf_buffer,
+                        data=pdf_data,
                         file_name=f"{hisse_adi}_analiz_raporu.pdf",
                         mime="application/pdf"
                     )
             except Exception as e:
                 st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
             
-def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
-    """PDF raporu oluşturur"""
-    buffer = io.BytesIO()
-    
+def create_pdf_report(hisse_adi):
+    """Streamlit sayfasının tamamını PDF'e dönüştürür"""
     try:
-        # PDF dokümanı oluştur
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        styles = getSampleStyleSheet()
-        story = []
+        # Geçici HTML dosyası oluştur
+        html_content = f"""
+        <html>
+        <head>
+            <title>{hisse_adi} Hisse Analiz Raporu</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; }}
+                h1, h2 {{ color: #1f77b4; }}
+                .metric {{ 
+                    margin: 10px 0;
+                    padding: 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 5px;
+                }}
+                .warning {{ color: #ff7f0e; }}
+                .success {{ color: #2ca02c; }}
+                table {{ 
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 10px 0;
+                }}
+                th, td {{
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }}
+                th {{ background-color: #f2f2f2; }}
+            </style>
+        </head>
+        <body>
+            <h1>{hisse_adi} Hisse Analiz Raporu</h1>
+            <div id="content"></div>
+        </body>
+        </html>
+        """
         
-        # Başlık
-        story.append(Paragraph(f"{hisse_adi} Hisse Analiz Raporu", styles['Heading1']))
-        story.append(Spacer(1, 12))
-        story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['Normal']))
-        story.append(Spacer(1, 20))
+        # Geçici dosyaları oluştur
+        temp_html = "temp_report.html"
+        temp_pdf = f"{hisse_adi}_analiz_raporu.pdf"
         
-        # Teknik Analiz
-        story.append(Paragraph("1. Teknik Analiz", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        technical_data = [
-            ["Gösterge", "Değer", "Sinyal"],
-            ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}", "-"],
-            ["RSI", f"{summary['RSI Durumu']}", "-"],
-            ["MACD", f"{summary['MACD Sinyali']}", "-"],
-            ["Bollinger", f"₺{summary['Bollinger']}", "-"]
-        ]
-        t = Table(technical_data)
-        t.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
+        with open(temp_html, "w", encoding="utf-8") as f:
+            f.write(html_content)
         
-        # Risk Analizi
-        story.append(Paragraph("2. Risk Analizi", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        risk_data = [
-            ["Metrik", "Değer"],
-            ["Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}"],
-            ["Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}"],
-            ["VaR (%95)", f"₺{risk_metrics['VaR_95']:.2f}"],
-            ["Maksimum Kayıp", f"%{risk_metrics['VaR_99']*100:.2f}"]
-        ]
-        t = Table(risk_data)
-        t.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
+        # HTML'i PDF'e dönüştür
+        import pdfkit
+        pdfkit.from_file(temp_html, temp_pdf)
         
-        # İstatistiksel Analiz
-        story.append(Paragraph("3. İstatistiksel Analiz", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        stats_data = [
-            ["Metrik", "Değer"],
-            ["Ortalama Getiri", f"%{stats_results['Otokorelasyon']*100:.2f}"],
-            ["Standart Sapma", f"%{risk_metrics['Volatilite']*100:.2f}"],
-            ["Çarpıklık", f"{stats_results['Çarpıklık']:.2f}"],
-            ["Basıklık", f"{stats_results['Basıklık']:.2f}"]
-        ]
-        t = Table(stats_data)
-        t.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 20))
+        # PDF'i oku
+        with open(temp_pdf, "rb") as f:
+            pdf_data = f.read()
         
-        # Tahminler
-        story.append(Paragraph("4. Tahminler", styles['Heading2']))
-        story.append(Spacer(1, 12))
-        predictions_data = [
-            ["Dönem", "Tahmini Fiyat"],
-            ["1 Gün", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}"],
-            ["1 Hafta", f"₺{predictions['Tahmin Edilen Kapanış']*1.02:.2f}"],
-            ["1 Ay", f"₺{predictions['Tahmin Edilen Kapanış']*1.05:.2f}"]
-        ]
-        t = Table(predictions_data)
-        t.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
-        ]))
-        story.append(t)
+        # Geçici dosyaları temizle
+        import os
+        os.remove(temp_html)
+        os.remove(temp_pdf)
         
-        # PDF oluştur
-        doc.build(story)
-        buffer.seek(0)
-        return buffer
+        return pdf_data
         
     except Exception as e:
         st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
