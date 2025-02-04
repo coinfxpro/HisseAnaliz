@@ -505,70 +505,170 @@ def calculate_fibonacci_levels(high, low):
     }
     return levels
 
-def create_pdf_report(hisse_adi):
-    """Streamlit sayfasının tamamını PDF'e dönüştürür"""
+def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
+    """Analiz raporunu HTML olarak oluşturur ve PDF'e dönüştürür"""
     try:
-        # Geçici HTML dosyası oluştur
+        # HTML içeriği oluştur
         html_content = f"""
         <html>
         <head>
+            <meta charset="utf-8">
             <title>{hisse_adi} Hisse Analiz Raporu</title>
             <style>
-                body {{ font-family: Arial, sans-serif; }}
-                h1, h2 {{ color: #1f77b4; }}
-                .metric {{ 
-                    margin: 10px 0;
-                    padding: 10px;
-                    border: 1px solid #ddd;
-                    border-radius: 5px;
-                }}
-                .warning {{ color: #ff7f0e; }}
-                .success {{ color: #2ca02c; }}
-                table {{ 
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 10px 0;
-                }}
-                th, td {{
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                    text-align: left;
-                }}
-                th {{ background-color: #f2f2f2; }}
+                body {{ font-family: Arial, sans-serif; padding: 20px; }}
+                h1 {{ color: #1f77b4; text-align: center; }}
+                h2 {{ color: #2c3e50; margin-top: 30px; }}
+                .section {{ margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }}
+                .metric {{ margin: 10px 0; }}
+                .warning {{ color: #e74c3c; }}
+                .success {{ color: #27ae60; }}
+                table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
+                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+                th {{ background-color: #f8f9fa; }}
+                tr:nth-child(even) {{ background-color: #f2f2f2; }}
             </style>
         </head>
         <body>
             <h1>{hisse_adi} Hisse Analiz Raporu</h1>
-            <div id="content"></div>
+            <p style="text-align: center;">Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+            
+            <div class="section">
+                <h2>1. Teknik Analiz</h2>
+                <table>
+                    <tr>
+                        <th>Gösterge</th>
+                        <th>Değer</th>
+                        <th>Sinyal</th>
+                    </tr>
+                    <tr>
+                        <td>Son Fiyat</td>
+                        <td>₺{df['close'].iloc[-1]:.2f}</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>RSI</td>
+                        <td>{summary['RSI Durumu']}</td>
+                        <td>{summary['RSI Durumu']}</td>
+                    </tr>
+                    <tr>
+                        <td>MACD</td>
+                        <td>{summary['MACD Sinyali']}</td>
+                        <td>{summary['MACD Sinyali']}</td>
+                    </tr>
+                    <tr>
+                        <td>Bollinger</td>
+                        <td>{summary['Bollinger']}</td>
+                        <td>{summary['Bollinger']}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>2. Risk Analizi</h2>
+                <table>
+                    <tr>
+                        <th>Metrik</th>
+                        <th>Değer</th>
+                    </tr>
+                    <tr>
+                        <td>Volatilite</td>
+                        <td>%{risk_metrics['Volatilite']*100:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Sharpe Oranı</td>
+                        <td>{risk_metrics['Sharpe Oranı']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>VaR (%95)</td>
+                        <td>₺{risk_metrics['VaR_95']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Maksimum Kayıp</td>
+                        <td>%{risk_metrics['VaR_99']*100:.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>3. İstatistiksel Analiz</h2>
+                <table>
+                    <tr>
+                        <th>Metrik</th>
+                        <th>Değer</th>
+                    </tr>
+                    <tr>
+                        <td>Otokorelasyon</td>
+                        <td>%{stats_results['Otokorelasyon']*100:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Çarpıklık</td>
+                        <td>{stats_results['Çarpıklık']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Basıklık</td>
+                        <td>{stats_results['Basıklık']:.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>4. Tahminler</h2>
+                <table>
+                    <tr>
+                        <th>Dönem</th>
+                        <th>Tahmini Fiyat</th>
+                    </tr>
+                    <tr>
+                        <td>1 Gün</td>
+                        <td>₺{predictions['Tahmin Edilen Kapanış']:.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>5. Fibonacci Seviyeleri</h2>
+                <table>
+                    <tr>
+                        <th>Seviye</th>
+                        <th>Fiyat</th>
+                    </tr>
+                    {generate_fibonacci_levels_html(df)}
+                </table>
+            </div>
         </body>
         </html>
         """
         
-        # Geçici dosyaları oluştur
-        temp_html = "temp_report.html"
-        temp_pdf = f"{hisse_adi}_analiz_raporu.pdf"
-        
-        with open(temp_html, "w", encoding="utf-8") as f:
+        # HTML'i geçici dosyaya kaydet
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
             f.write(html_content)
-        
+            temp_path = f.name
+            
         # HTML'i PDF'e dönüştür
-        import pdfkit
-        pdfkit.from_file(temp_html, temp_pdf)
+        from weasyprint import HTML
+        pdf = HTML(filename=temp_path).write_pdf()
         
-        # PDF'i oku
-        with open(temp_pdf, "rb") as f:
-            pdf_data = f.read()
-        
-        # Geçici dosyaları temizle
+        # Geçici dosyayı sil
         import os
-        os.remove(temp_html)
-        os.remove(temp_pdf)
+        os.unlink(temp_path)
         
-        return pdf_data
+        return pdf
         
     except Exception as e:
         st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
         return None
+
+def generate_fibonacci_levels_html(df):
+    """Fibonacci seviyelerini HTML formatında oluşturur"""
+    high = df['high'].max()
+    low = df['low'].min()
+    levels = calculate_fibonacci_levels(high, low)
+    
+    html = ""
+    for level, value in levels.items():
+        html += f"<tr><td>{level}</td><td>₺{value:.2f}</td></tr>"
+    return html
 
 # Streamlit sayfa yapılandırması
 st.set_page_config(
@@ -1269,7 +1369,7 @@ if uploaded_file is not None:
         
         if st.button("PDF Raporu İndir"):
             try:
-                pdf_data = create_pdf_report(hisse_adi)
+                pdf_data = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
                 if pdf_data:
                     st.download_button(
                         label="PDF'i İndir",
@@ -1280,70 +1380,170 @@ if uploaded_file is not None:
             except Exception as e:
                 st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
             
-def create_pdf_report(hisse_adi):
-    """Streamlit sayfasının tamamını PDF'e dönüştürür"""
+def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
+    """Analiz raporunu HTML olarak oluşturur ve PDF'e dönüştürür"""
     try:
-        # Geçici HTML dosyası oluştur
+        # HTML içeriği oluştur
         html_content = f"""
         <html>
         <head>
+            <meta charset="utf-8">
             <title>{hisse_adi} Hisse Analiz Raporu</title>
             <style>
-                body {{ font-family: Arial, sans-serif; }}
-                h1, h2 {{ color: #1f77b4; }}
-                .metric {{ 
-                    margin: 10px 0;
-                    padding: 10px;
-                    border: 1px solid #ddd;
-                    border-radius: 5px;
-                }}
-                .warning {{ color: #ff7f0e; }}
-                .success {{ color: #2ca02c; }}
-                table {{ 
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 10px 0;
-                }}
-                th, td {{
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                    text-align: left;
-                }}
-                th {{ background-color: #f2f2f2; }}
+                body {{ font-family: Arial, sans-serif; padding: 20px; }}
+                h1 {{ color: #1f77b4; text-align: center; }}
+                h2 {{ color: #2c3e50; margin-top: 30px; }}
+                .section {{ margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }}
+                .metric {{ margin: 10px 0; }}
+                .warning {{ color: #e74c3c; }}
+                .success {{ color: #27ae60; }}
+                table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
+                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+                th {{ background-color: #f8f9fa; }}
+                tr:nth-child(even) {{ background-color: #f2f2f2; }}
             </style>
         </head>
         <body>
             <h1>{hisse_adi} Hisse Analiz Raporu</h1>
-            <div id="content"></div>
+            <p style="text-align: center;">Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+            
+            <div class="section">
+                <h2>1. Teknik Analiz</h2>
+                <table>
+                    <tr>
+                        <th>Gösterge</th>
+                        <th>Değer</th>
+                        <th>Sinyal</th>
+                    </tr>
+                    <tr>
+                        <td>Son Fiyat</td>
+                        <td>₺{df['close'].iloc[-1]:.2f}</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>RSI</td>
+                        <td>{summary['RSI Durumu']}</td>
+                        <td>{summary['RSI Durumu']}</td>
+                    </tr>
+                    <tr>
+                        <td>MACD</td>
+                        <td>{summary['MACD Sinyali']}</td>
+                        <td>{summary['MACD Sinyali']}</td>
+                    </tr>
+                    <tr>
+                        <td>Bollinger</td>
+                        <td>{summary['Bollinger']}</td>
+                        <td>{summary['Bollinger']}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>2. Risk Analizi</h2>
+                <table>
+                    <tr>
+                        <th>Metrik</th>
+                        <th>Değer</th>
+                    </tr>
+                    <tr>
+                        <td>Volatilite</td>
+                        <td>%{risk_metrics['Volatilite']*100:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Sharpe Oranı</td>
+                        <td>{risk_metrics['Sharpe Oranı']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>VaR (%95)</td>
+                        <td>₺{risk_metrics['VaR_95']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Maksimum Kayıp</td>
+                        <td>%{risk_metrics['VaR_99']*100:.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>3. İstatistiksel Analiz</h2>
+                <table>
+                    <tr>
+                        <th>Metrik</th>
+                        <th>Değer</th>
+                    </tr>
+                    <tr>
+                        <td>Otokorelasyon</td>
+                        <td>%{stats_results['Otokorelasyon']*100:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Çarpıklık</td>
+                        <td>{stats_results['Çarpıklık']:.2f}</td>
+                    </tr>
+                    <tr>
+                        <td>Basıklık</td>
+                        <td>{stats_results['Basıklık']:.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>4. Tahminler</h2>
+                <table>
+                    <tr>
+                        <th>Dönem</th>
+                        <th>Tahmini Fiyat</th>
+                    </tr>
+                    <tr>
+                        <td>1 Gün</td>
+                        <td>₺{predictions['Tahmin Edilen Kapanış']:.2f}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>5. Fibonacci Seviyeleri</h2>
+                <table>
+                    <tr>
+                        <th>Seviye</th>
+                        <th>Fiyat</th>
+                    </tr>
+                    {generate_fibonacci_levels_html(df)}
+                </table>
+            </div>
         </body>
         </html>
         """
         
-        # Geçici dosyaları oluştur
-        temp_html = "temp_report.html"
-        temp_pdf = f"{hisse_adi}_analiz_raporu.pdf"
-        
-        with open(temp_html, "w", encoding="utf-8") as f:
+        # HTML'i geçici dosyaya kaydet
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
             f.write(html_content)
-        
+            temp_path = f.name
+            
         # HTML'i PDF'e dönüştür
-        import pdfkit
-        pdfkit.from_file(temp_html, temp_pdf)
+        from weasyprint import HTML
+        pdf = HTML(filename=temp_path).write_pdf()
         
-        # PDF'i oku
-        with open(temp_pdf, "rb") as f:
-            pdf_data = f.read()
-        
-        # Geçici dosyaları temizle
+        # Geçici dosyayı sil
         import os
-        os.remove(temp_html)
-        os.remove(temp_pdf)
+        os.unlink(temp_path)
         
-        return pdf_data
+        return pdf
         
     except Exception as e:
         st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
         return None
+
+def generate_fibonacci_levels_html(df):
+    """Fibonacci seviyelerini HTML formatında oluşturur"""
+    high = df['high'].max()
+    low = df['low'].min()
+    levels = calculate_fibonacci_levels(high, low)
+    
+    html = ""
+    for level, value in levels.items():
+        html += f"<tr><td>{level}</td><td>₺{value:.2f}</td></tr>"
+    return html
 
 # Ana uygulama
 if uploaded_file is not None:
