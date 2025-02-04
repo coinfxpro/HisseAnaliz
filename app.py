@@ -1199,28 +1199,62 @@ if uploaded_file is not None:
 
         # 10. PDF RAPORU
         st.header("10. PDF Raporu")
+        st.info("PDF raporu özelliği şu anda kullanılamıyor.")
+
+        # 11. RİSK ANALİZİ
+        st.header("11. RİSK ANALİZİ")
         
-        try:
-            # PDF oluştur
-            pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}")
+            st.metric("Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}")
             
-            if pdf_buffer:
-                # PDF'i indir butonu
-                st.download_button(
-                    label="📥 PDF Raporu İndir",
-                    data=pdf_buffer,
-                    file_name=f"{hisse_adi}_analiz_raporu_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                    mime="application/pdf",
-                    key="download_pdf",
-                    help="Analiz raporunu PDF formatında indirmek için tıklayın"
-                )
-                st.success("✅ PDF raporu başarıyla oluşturuldu! İndirmek için yukarıdaki butona tıklayın.")
-            else:
-                st.error("❌ PDF raporu oluşturulamadı. Lütfen tekrar deneyin.")
-                
-        except Exception as e:
-            st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
-            st.info("Lütfen tekrar deneyin veya destek ekibiyle iletişime geçin.")
+        with col2:
+            st.metric("Value at Risk (%95)", f"₺{risk_metrics['VaR_95']:.2f}")
+            st.metric("Maksimum Kayıp", f"%{risk_metrics['VaR_99']*100:.2f}")
+        
+        # Risk analizi yorumları
+        st.subheader("11.1 Risk Analizi Yorumları")
+        
+        # Volatilite yorumu
+        if risk_metrics['Volatilite'] > 0.3:
+            st.warning("⚠ Yüksek volatilite: Riskli yatırım ortamı")
+        elif risk_metrics['Volatilite'] > 0.15:
+            st.info("ℹ️ Normal volatilite: Orta risk seviyesi")
+        else:
+            st.success("✅ Düşük volatilite: Düşük risk seviyesi")
+            
+        # Sharpe oranı yorumu
+        if risk_metrics['Sharpe Oranı'] > 1:
+            st.success("✅ Yüksek Sharpe oranı: Risk/getiri dengesi iyi")
+        elif risk_metrics['Sharpe Oranı'] > 0:
+            st.info("ℹ️ Orta Sharpe oranı: Risk/getiri dengesi normal")
+        else:
+            st.warning("⚠️ Düşük Sharpe oranı: Risk/getiri dengesi zayıf")
+            
+        # VaR yorumu
+        var_pct = risk_metrics['VaR_95'] / df['close'].iloc[-1] * 100
+        st.info(f"ℹ️ %95 güven aralığında maksimum %{var_pct:.2f} kayıp beklentisi")
+        
+        # Maksimum kayıp yorumu
+        if risk_metrics['VaR_99'] > 0.2:
+            st.warning("⚠️ Yüksek maksimum kayıp: Dikkatli pozisyon alınmalı")
+        else:
+            st.success("✅ Kabul edilebilir maksimum kayıp seviyesi")
+            
+        st.markdown("""
+        **Risk Analizi Özeti:**
+        1. **Genel Risk Seviyesi:** {}
+        2. **Yatırım Potansiyeli:** {}
+        3. **Pozisyon Önerisi:** {}
+        4. **Risk Yönetimi:** Stop-loss seviyesi ₺{} olarak belirlenebilir
+        """.format(
+            "Yüksek" if risk_metrics['Volatilite'] > 0.3 or risk_metrics['VaR_99'] > 0.2 else "Orta" if risk_metrics['Volatilite'] > 0.15 else "Düşük",
+            "İyi" if risk_metrics['Sharpe Oranı'] > 1 else "Orta" if risk_metrics['Sharpe Oranı'] > 0 else "Zayıf",
+            "Küçük pozisyon" if risk_metrics['Volatilite'] > 0.3 else "Normal pozisyon",
+            f"{df['close'].iloc[-1] * (1 - risk_metrics['VaR_95']):.2f}"
+        ))
 
 def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
     """PDF raporu oluşturur"""
@@ -1367,5 +1401,3 @@ if uploaded_file is not None:
         st.stop()
 else:
     st.info(f"Lütfen önce hisse adını girin ve ardından {hisse_adi if hisse_adi else 'hisse adı'} ile başlayan CSV dosyasını yükleyin.")
-
-
