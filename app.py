@@ -157,7 +157,7 @@ def predict_next_day_values(df):
         df = df.dropna()
         
         # Feature'ları ve hedef değişkeni ayarla
-        features = ['close', 'volume', 'MA5', 'MA20', 'RSI']  # Sadece mevcut sütunları kullan
+        features = ['close', 'Volume', 'MA5', 'MA20', 'RSI']  # Volume büyük harfle
         X = df[features].values
         y_close = df['close'].values
         
@@ -235,8 +235,8 @@ def analyze_volume_scenarios(df, predictions):
     """Hacim senaryolarını analiz eder"""
     try:
         # Hacim durumu analizi
-        avg_volume = df['volume'].mean()
-        current_volume = df['volume'].iloc[-1]
+        avg_volume = df['Volume'].mean()  # Volume büyük harfle
+        current_volume = df['Volume'].iloc[-1]  # Volume büyük harfle
         volume_change = ((current_volume - avg_volume) / avg_volume) * 100
         
         # Hacim durumu belirleme
@@ -299,8 +299,8 @@ def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
         bb_status = "NORMAL ✅"
     
     # Hacim analizi
-    volume_avg = df['volume'].mean()
-    current_volume = df['volume'].iloc[-1]
+    volume_avg = df['Volume'].mean()  # Volume büyük harfle
+    current_volume = df['Volume'].iloc[-1]  # Volume büyük harfle
     volume_status = "YÜKSEK 💪" if current_volume > volume_avg * 1.5 else \
                    "DÜŞÜK 👎" if current_volume < volume_avg * 0.5 else \
                    "NORMAL 👍"
@@ -351,9 +351,9 @@ def analyze_correlation_matrix(corr_matrix):
     
     # Önemli korelasyonları analiz et
     pairs = [
-        ('close', 'volume'),
+        ('close', 'Volume'),  # Volume büyük harfle
         ('close', 'RSI'),
-        ('volume', 'Daily_Return'),
+        ('Volume', 'Daily_Return'),  # Volume büyük harfle
         ('RSI', 'Daily_Return')
     ]
     
@@ -376,7 +376,7 @@ def analyze_correlation_matrix(corr_matrix):
     return correlations
 
 def interpret_correlation(var1, var2, corr):
-    if var1 == 'close' and var2 == 'volume':
+    if var1 == 'close' and var2 == 'Volume':  # Volume büyük harfle
         if corr > 0.3:
             return "Yüksek hacim fiyat artışını destekliyor"
         elif corr < -0.3:
@@ -390,7 +390,7 @@ def interpret_correlation(var1, var2, corr):
         else:
             return "Trend zayıf veya yatay hareket mevcut"
     
-    elif var1 == 'volume' and var2 == 'Daily_Return':
+    elif var1 == 'Volume' and var2 == 'Daily_Return':  # Volume büyük harfle
         if abs(corr) > 0.3:
             return "Hacim, günlük getirilerle ilişkili"
         else:
@@ -430,7 +430,7 @@ def create_candlestick_chart(df):
 def create_volume_chart(df):
     volume_chart = go.Bar(
         x=df.index,
-        y=df['volume'],
+        y=df['Volume'],  # Volume büyük harfle
         name='Hacim'
     )
     
@@ -551,10 +551,10 @@ if uploaded_file is not None:
             daily_return = ((df['close'].iloc[-1] / df['close'].iloc[-2]) - 1) * 100
             st.metric("Günlük Değişim", f"%{daily_return:.2f}")
         with col3:
-            volume_change = ((df['volume'].iloc[-1] / df['volume'].iloc[-2]) - 1) * 100
+            volume_change = ((df['Volume'].iloc[-1] / df['Volume'].iloc[-2]) - 1) * 100  # Volume büyük harfle
             st.metric("Hacim Değişimi", f"%{volume_change:.2f}")
         with col4:
-            st.metric("Günlük İşlem Hacmi", f"₺{df['volume'].iloc[-1]:,.0f}")
+            st.metric("Günlük İşlem Hacmi", f"₺{df['Volume'].iloc[-1]:,.0f}")  # Volume büyük harfle
 
         # 2. TEKNİK ANALİZ GRAFİKLERİ
         st.header("2. TEKNİK ANALİZ GRAFİKLERİ")
@@ -597,8 +597,8 @@ if uploaded_file is not None:
         st.plotly_chart(fig_volume)
         
         # Hacim analizi
-        avg_volume = df['volume'].mean()
-        current_volume = df['volume'].iloc[-1]
+        avg_volume = df['Volume'].mean()  # Volume büyük harfle
+        current_volume = df['Volume'].iloc[-1]  # Volume büyük harfle
         volume_change = ((current_volume - avg_volume) / avg_volume) * 100
         
         volume_analysis = f"""
@@ -688,7 +688,7 @@ if uploaded_file is not None:
         st.subheader("3.1 Temel İstatistikler")
         
         # Temel istatistikler
-        basic_stats = df[['close', 'volume', 'Daily_Return']].describe()
+        basic_stats = df[['close', 'Volume', 'Daily_Return']].describe()  # Volume büyük harfle
         st.dataframe(basic_stats)
         
         # İstatistik yorumları
@@ -715,9 +715,9 @@ if uploaded_file is not None:
         - **Pozitif Getiri Günleri:** %{(df['Daily_Return'] > 0).mean()*100:.1f}
         
         **Hacim İstatistikleri:**
-        - **Ortalama Hacim:** {df['volume'].mean():,.0f}
-        - **Maksimum Hacim:** {df['volume'].max():,.0f}
-        - **Minimum Hacim:** {df['volume'].min():,.0f}
+        - **Ortalama Hacim:** {df['Volume'].mean():,.0f}  # Volume büyük harfle
+        - **Maksimum Hacim:** {df['Volume'].max():,.0f}  # Volume büyük harfle
+        - **Minimum Hacim:** {df['Volume'].min():,.0f}  # Volume büyük harfle
         """
         
         st.markdown(stats_analysis)
@@ -1028,7 +1028,7 @@ if uploaded_file is not None:
         st.header("7. KORELASYON ANALİZİ")
         
         # Korelasyon matrisi
-        corr_matrix = df[['open', 'high', 'low', 'close', 'volume', 'Daily_Return', 'RSI']].corr()
+        corr_matrix = df[['open', 'high', 'low', 'close', 'Volume', 'Daily_Return', 'RSI']].corr()  # Volume büyük harfle
         
         # Korelasyon haritası
         fig_corr = plt.figure(figsize=(10, 8))
@@ -1050,9 +1050,9 @@ if uploaded_file is not None:
         2. **Momentum Durumu:** {}
         3. **Volatilite Etkisi:** {}
         """.format(
-            "Güçlü" if abs(corr_matrix.loc['close', 'volume']) > 0.5 else "Zayıf",
+            "Güçlü" if abs(corr_matrix.loc['close', 'Volume']) > 0.5 else "Zayıf",  # Volume büyük harfle
             "Trend devam ediyor" if corr_matrix.loc['close', 'RSI'] > 0.7 else "Trend zayıflıyor",
-            "Yüksek" if abs(corr_matrix.loc['Daily_Return', 'volume']) > 0.3 else "Düşük"
+            "Yüksek" if abs(corr_matrix.loc['Daily_Return', 'Volume']) > 0.3 else "Düşük"  # Volume büyük harfle
         ))
 
         # 8. İSTATİSTİKSEL ANALİZ
