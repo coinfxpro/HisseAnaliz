@@ -129,38 +129,41 @@ def perform_statistical_analysis(df):
     }
 
 def predict_next_day_values(df):
-    # Özellik seçimi
-    features = ['open', 'high', 'low', 'close', 'Volume', 'MA20', 'MA50', 'MA200', 'RSI', 'Daily_Return']
-    X = df[features].values[:-1]  # Son günü tahmin için kullanacağız
-    y_close = df['close'].values[1:]  # Bir sonraki günün kapanışı
-    y_high = df['high'].values[1:]    # Bir sonraki günün en yükseği
-    y_low = df['low'].values[1:]      # Bir sonraki günün en düşüğü
+    """Gelecek gün tahminlerini hesaplar"""
+    # Feature'ları hazırla
+    df['MA5'] = df['close'].rolling(window=5).mean()
+    df['MA20'] = df['close'].rolling(window=20).mean()
+    df['RSI'] = calculate_rsi(df['close'])
     
-    # Veri setini bölme
-    X_train, X_test, y_train_close, y_test_close = train_test_split(X[:-1], y_close[:-1], test_size=0.2, random_state=42)
-    _, _, y_train_high, y_test_high = train_test_split(X[:-1], y_high[:-1], test_size=0.2, random_state=42)
-    _, _, y_train_low, y_test_low = train_test_split(X[:-1], y_low[:-1], test_size=0.2, random_state=42)
+    # NaN değerleri temizle
+    df = df.dropna()
     
-    # Model eğitimi - Kapanış
-    model_close = GradientBoostingRegressor(n_estimators=100, random_state=42)
-    model_close.fit(X_train, y_train_close)
+    # Feature'ları ve hedef değişkeni ayarla
+    features = ['open', 'high', 'low', 'volume', 'MA5', 'MA20', 'RSI']
+    X = df[features].values
+    y_close = df['close'].values
     
-    # Model eğitimi - En Yüksek
-    model_high = GradientBoostingRegressor(n_estimators=100, random_state=42)
-    model_high.fit(X_train, y_train_high)
+    # Veriyi ölçeklendir
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
     
-    # Model eğitimi - En Düşük
-    model_low = GradientBoostingRegressor(n_estimators=100, random_state=42)
-    model_low.fit(X_train, y_train_low)
+    # Train-test split
+    X_train = X_scaled[:-1]  # Son günü test için ayır
+    X_test = X_scaled[-1:]   # Son gün
+    y_train = y_close[:-1]
     
-    # Son günün verilerini kullanarak tahmin
-    last_day = X[-1].reshape(1, -1)
+    # Model eğitimi
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
     
+    # Tahmin
+    next_day_pred = model.predict(X_test)[0]
+    
+    # Tahmin sonuçlarını hazırla
     predictions = {
-        'close': model_close.predict(last_day)[0],
-        'high': model_high.predict(last_day)[0],
-        'low': model_low.predict(last_day)[0],
-        'open': df['close'].iloc[-1]  # Bir sonraki günün açılışı son kapanış olarak tahmin edilir
+        'Tahmin Edilen Kapanış': next_day_pred,
+        'Son Kapanış': df['close'].iloc[-1],
+        'Değişim': (next_day_pred - df['close'].iloc[-1]) / df['close'].iloc[-1] * 100
     }
     
     return predictions
@@ -292,7 +295,7 @@ def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
         'Hacim Durumu': volume_status,
         'Risk Durumu': risk_status,
         'Teknik Göstergeler': ma_status,
-        'Tahmin': f"{'YÜKSELİŞ 📈' if predictions['close'] > df['close'].iloc[-1] else 'DÜŞÜŞ 📉'} (₺{predictions['close']:.2f})",
+        'Tahmin': f"{'YÜKSELİŞ 📈' if predictions['Tahmin Edilen Kapanış'] > df['close'].iloc[-1] else 'DÜŞÜŞ 📉'} (₺{predictions['Tahmin Edilen Kapanış']:.2f})",
         'Sharpe': f"{'MÜKEMMEL 🌟' if risk_metrics['Sharpe Oranı'] > 2 else 'İYİ ✅' if risk_metrics['Sharpe Oranı'] > 1 else 'ZAYIF ⚠️'}"
     }
 
@@ -845,26 +848,19 @@ if uploaded_file is not None:
         
         # Tahmin özet tablosu
         pred_df = pd.DataFrame({
-            'Metrik': ['Açılış', 'En Yüksek', 'En Düşük', 'Kapanış'],
+            'Metrik': ['Tahmin Edilen Kapanış', 'Son Kapanış', 'Değişim'],
             'Tahmin': [
-                f"₺{predictions['open']:.2f}",
-                f"₺{predictions['high']:.2f}",
-                f"₺{predictions['low']:.2f}",
-                f"₺{predictions['close']:.2f}"
-            ],
-            'Değişim (%)': [
-                f"%{((predictions['open']/df['close'].iloc[-1])-1)*100:.1f}",
-                f"%{((predictions['high']/df['close'].iloc[-1])-1)*100:.1f}",
-                f"%{((predictions['low']/df['close'].iloc[-1])-1)*100:.1f}",
-                f"%{((predictions['close']/df['close'].iloc[-1])-1)*100:.1f}"
+                f"₺{predictions['Tahmin Edilen Kapanış']:.2f}",
+                f"₺{predictions['Son Kapanış']:.2f}",
+                f"%{predictions['Değişim']:.1f}"
             ]
         })
         
         st.table(pred_df)
         
         # Tahmin yorumları
-        pred_change = ((predictions['close'] / df['close'].iloc[-1]) - 1) * 100
-        pred_range = ((predictions['high'] - predictions['low']) / predictions['low']) * 100
+        pred_change = predictions['Değişim']
+        pred_range = ((predictions['Tahmin Edilen Kapanış'] - df['close'].iloc[-1]) / df['close'].iloc[-1]) * 100
         
         prediction_analysis = f"""
         **Tahmin Analizi:**
@@ -872,7 +868,7 @@ if uploaded_file is not None:
         1. **Genel Görünüm:**
            - Beklenen Yön: {"🟢 YÜKSELİŞ" if pred_change > 1 else "🔴 DÜŞÜŞ" if pred_change < -1 else "⚪ YATAY"}
            - Beklenen Değişim: %{pred_change:.1f}
-           - Fiyat Aralığı: ₺{predictions['low']:.2f} - ₺{predictions['high']:.2f} (%{pred_range:.1f})
+           - Fiyat Aralığı: ₺{predictions['Tahmin Edilen Kapanış']:.2f} - ₺{df['close'].iloc[-1]:.2f} (%{pred_range:.1f})
         
         2. **Güven Analizi:**
            - Trend Gücü: {
@@ -887,10 +883,10 @@ if uploaded_file is not None:
            }
         
         3. **Destek/Direnç Seviyeleri:**
-           - Güçlü Direnç: ₺{predictions['high']:.2f}
-           - Zayıf Direnç: ₺{(predictions['high'] + predictions['close'])/2:.2f}
-           - Zayıf Destek: ₺{(predictions['low'] + predictions['close'])/2:.2f}
-           - Güçlü Destek: ₺{predictions['low']:.2f}
+           - Güçlü Direnç: ₺{predictions['Tahmin Edilen Kapanış']:.2f}
+           - Zayıf Direnç: ₺{(predictions['Tahmin Edilen Kapanış'] + df['close'].iloc[-1])/2:.2f}
+           - Zayıf Destek: ₺{(predictions['Tahmin Edilen Kapanış'] + df['close'].iloc[-1])/2:.2f}
+           - Güçlü Destek: ₺{df['close'].iloc[-1]:.2f}
         """
         
         st.markdown(prediction_analysis)
@@ -906,18 +902,16 @@ if uploaded_file is not None:
         
         # Senaryo tablosu
         scenario_df = pd.DataFrame({
-            'Metrik': ['Açılış', 'En Yüksek', 'En Düşük', 'Kapanış'],
+            'Metrik': ['Tahmin Edilen Kapanış', 'Son Kapanış', 'Değişim'],
             'Yüksek Hacim': [
-                f"₺{scenarios['Yüksek_Hacim']['open']:.2f}",
-                f"₺{scenarios['Yüksek_Hacim']['high']:.2f}",
-                f"₺{scenarios['Yüksek_Hacim']['low']:.2f}",
-                f"₺{scenarios['Yüksek_Hacim']['close']:.2f}"
+                f"₺{scenarios['Yüksek_Hacim']['Tahmin Edilen Kapanış']:.2f}",
+                f"₺{scenarios['Yüksek_Hacim']['Son Kapanış']:.2f}",
+                f"%{scenarios['Yüksek_Hacim']['Değişim']:.1f}"
             ],
             'Düşük Hacim': [
-                f"₺{scenarios['Düşük_Hacim']['open']:.2f}",
-                f"₺{scenarios['Düşük_Hacim']['high']:.2f}",
-                f"₺{scenarios['Düşük_Hacim']['low']:.2f}",
-                f"₺{scenarios['Düşük_Hacim']['close']:.2f}"
+                f"₺{scenarios['Düşük_Hacim']['Tahmin Edilen Kapanış']:.2f}",
+                f"₺{scenarios['Düşük_Hacim']['Son Kapanış']:.2f}",
+                f"%{scenarios['Düşük_Hacim']['Değişim']:.1f}"
             ]
         })
         
@@ -929,20 +923,20 @@ if uploaded_file is not None:
         
         1. **Yüksek Hacim Senaryosu:**
            - Beklenen Hareket: {"Güçlü Yükseliş 📈" if pred_change > 0 else "Güçlü Düşüş 📉"}
-           - Hedef Fiyat: ₺{scenarios['Yüksek_Hacim']['close']:.2f} (%{((scenarios['Yüksek_Hacim']['close']/df['close'].iloc[-1])-1)*100:.1f})
+           - Hedef Fiyat: ₺{scenarios['Yüksek_Hacim']['Tahmin Edilen Kapanış']:.2f} (%{((scenarios['Yüksek_Hacim']['Tahmin Edilen Kapanış']/df['close'].iloc[-1])-1)*100:.1f})
            - Olasılık: {"Yüksek ⭐⭐⭐" if volume_status == "Yüksek Hacim" else "Düşük ⭐"}
         
         2. **Düşük Hacim Senaryosu:**
            - Beklenen Hareket: {"Zayıf Yükseliş ↗️" if pred_change > 0 else "Zayıf Düşüş ↘️"}
-           - Hedef Fiyat: ₺{scenarios['Düşük_Hacim']['close']:.2f} (%{((scenarios['Düşük_Hacim']['close']/df['close'].iloc[-1])-1)*100:.1f})
+           - Hedef Fiyat: ₺{scenarios['Düşük_Hacim']['Tahmin Edilen Kapanış']:.2f} (%{((scenarios['Düşük_Hacim']['Tahmin Edilen Kapanış']/df['close'].iloc[-1])-1)*100:.1f})
            - Olasılık: {"Yüksek ⭐⭐⭐" if volume_status == "Düşük Hacim" else "Düşük ⭐"}
         
         **Pozisyon Önerileri:**
-        1. Stop-Loss: ₺{scenarios['Düşük_Hacim']['low']:.2f} (%{((scenarios['Düşük_Hacim']['low']/df['close'].iloc[-1])-1)*100:.1f})
-        2. İlk Hedef: ₺{scenarios['Yüksek_Hacim']['close']:.2f} (%{((scenarios['Yüksek_Hacim']['close']/df['close'].iloc[-1])-1)*100:.1f})
-        3. Maksimum Hedef: ₺{scenarios['Yüksek_Hacim']['high']:.2f} (%{((scenarios['Yüksek_Hacim']['high']/df['close'].iloc[-1])-1)*100:.1f})
+        1. Stop-Loss: ₺{scenarios['Düşük_Hacim']['Tahmin Edilen Kapanış']:.2f} (%{((scenarios['Düşük_Hacim']['Tahmin Edilen Kapanış']/df['close'].iloc[-1])-1)*100:.1f})
+        2. İlk Hedef: ₺{scenarios['Yüksek_Hacim']['Tahmin Edilen Kapanış']:.2f} (%{((scenarios['Yüksek_Hacim']['Tahmin Edilen Kapanış']/df['close'].iloc[-1])-1)*100:.1f})
+        3. Maksimum Hedef: ₺{scenarios['Yüksek_Hacim']['Tahmin Edilen Kapanış']:.2f} (%{((scenarios['Yüksek_Hacim']['Tahmin Edilen Kapanış']/df['close'].iloc[-1])-1)*100:.1f})
         
-        **Risk/Getiri Oranı:** {abs(((scenarios['Yüksek_Hacim']['close']/df['close'].iloc[-1])-1) / ((scenarios['Düşük_Hacim']['low']/df['close'].iloc[-1])-1)):.1f}
+        **Risk/Getiri Oranı:** {abs(((scenarios['Yüksek_Hacim']['Tahmin Edilen Kapanış']/df['close'].iloc[-1])-1) / ((scenarios['Düşük_Hacim']['Tahmin Edilen Kapanış']/df['close'].iloc[-1])-1)):.1f}
         """
         
         st.markdown(scenario_analysis)
