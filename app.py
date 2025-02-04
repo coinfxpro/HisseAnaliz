@@ -1361,27 +1361,3 @@ if uploaded_file is not None:
 else:
     st.info(f"Lütfen önce hisse adını girin ve ardından {hisse_adi if hisse_adi else 'hisse adı'} ile başlayan CSV dosyasını yükleyin.")
 
-if uploaded_file is not None:
-    try:
-        # Dosya içeriğini oku
-        df = pd.read_csv(uploaded_file)
-        
-        # Debug bilgisi
-        st.write("Mevcut sütunlar:", df.columns.tolist())
-        
-        # Boş dosya kontrolü
-        if df.empty:
-            st.error("Yüklenen CSV dosyası boş!")
-            st.stop()
-        
-        # Sütun isimlerini kontrol et
-        required_columns = ['time', 'open', 'high', 'low', 'close', 'Volume']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        
-        if missing_columns:
-            st.error(f"CSV dosyasında eksik sütunlar var: {', '.join(missing_columns)}")
-            st.stop()
-        
-        # Tarihi index olarak ayarla
-        df['time'] = pd.to_datetime(df['time'], unit='s')
-        df.set_index('time', inplace=True)
