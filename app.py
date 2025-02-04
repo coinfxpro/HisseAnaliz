@@ -492,16 +492,117 @@ def create_technical_charts(df):
     return rsi_fig, macd_fig
 
 def calculate_fibonacci_levels(high, low):
-    """Fibonacci düzeltme seviyelerini hesaplar"""
+    """Fibonacci seviyelerini hesaplar"""
     diff = high - low
     levels = {
-        "0.236 Seviyesi": low + diff * 0.236,
-        "0.382 Seviyesi": low + diff * 0.382,
-        "0.500 Seviyesi": low + diff * 0.500,
-        "0.618 Seviyesi": low + diff * 0.618,
-        "0.786 Seviyesi": low + diff * 0.786
+        'Yüksek': high,
+        '0.786': low + diff * 0.786,
+        '0.618': low + diff * 0.618,
+        '0.5': low + diff * 0.5,
+        '0.382': low + diff * 0.382,
+        '0.236': low + diff * 0.236,
+        'Düşük': low
     }
     return levels
+
+def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
+    """PDF raporu oluşturur"""
+    buffer = io.BytesIO()
+    
+    try:
+        # PDF dokümanı oluştur
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Başlık
+        story.append(Paragraph(f"{hisse_adi} Hisse Analiz Raporu", styles['Heading1']))
+        story.append(Spacer(1, 12))
+        story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['Normal']))
+        story.append(Spacer(1, 20))
+        
+        # Teknik Analiz
+        story.append(Paragraph("1. Teknik Analiz", styles['Heading2']))
+        story.append(Spacer(1, 12))
+        technical_data = [
+            ["Gösterge", "Değer", "Sinyal"],
+            ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}", "-"],
+            ["RSI", f"{summary['rsi']:.2f}", summary['rsi_signal']],
+            ["MACD", f"{summary['macd']:.2f}", summary['macd_signal']],
+            ["Bollinger", f"₺{summary['bollinger_middle']:.2f}", summary['bollinger_signal']]
+        ]
+        t = Table(technical_data)
+        t.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 20))
+        
+        # Risk Analizi
+        story.append(Paragraph("2. Risk Analizi", styles['Heading2']))
+        story.append(Spacer(1, 12))
+        risk_data = [
+            ["Metrik", "Değer"],
+            ["Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}"],
+            ["Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}"],
+            ["VaR (%95)", f"₺{risk_metrics['VaR_95']:.2f}"],
+            ["Maksimum Kayıp", f"%{risk_metrics['VaR_99']*100:.2f}"]
+        ]
+        t = Table(risk_data)
+        t.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 20))
+        
+        # İstatistiksel Analiz
+        story.append(Paragraph("3. İstatistiksel Analiz", styles['Heading2']))
+        story.append(Spacer(1, 12))
+        stats_data = [
+            ["Metrik", "Değer"],
+            ["Ortalama Getiri", f"%{stats_results['Ortalama Getiri']*100:.2f}"],
+            ["Standart Sapma", f"%{stats_results['Standart Sapma']*100:.2f}"],
+            ["Çarpıklık", f"{stats_results['Çarpıklık']:.2f}"],
+            ["Basıklık", f"{stats_results['Basıklık']:.2f}"]
+        ]
+        t = Table(stats_data)
+        t.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 20))
+        
+        # Tahminler
+        story.append(Paragraph("4. Tahminler", styles['Heading2']))
+        story.append(Spacer(1, 12))
+        predictions_data = [
+            ["Dönem", "Tahmini Fiyat"],
+            ["1 Gün", f"₺{predictions['1_gun']:.2f}"],
+            ["1 Hafta", f"₺{predictions['1_hafta']:.2f}"],
+            ["1 Ay", f"₺{predictions['1_ay']:.2f}"]
+        ]
+        t = Table(predictions_data)
+        t.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
+        ]))
+        story.append(t)
+        
+        # PDF oluştur
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+        
+    except Exception as e:
+        st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
+        return None
 
 # Streamlit sayfa yapılandırması
 st.set_page_config(
@@ -1200,31 +1301,21 @@ if uploaded_file is not None:
         # 10. PDF RAPORU
         st.header("10. PDF Raporu")
         
-        try:
-            with st.spinner("PDF raporu hazırlanıyor..."):
-                # PDF oluştur
+        if st.button("PDF Raporu İndir"):
+            try:
                 pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
-                
                 if pdf_buffer:
-                    # PDF'i indir butonu
                     st.download_button(
-                        label="📥 Analiz Raporunu İndir (PDF)",
+                        label="PDF'i İndir",
                         data=pdf_buffer,
-                        file_name=f"{hisse_adi}_analiz_raporu_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                        mime="application/pdf",
-                        key="download_pdf",
-                        help="Tüm analiz sonuçlarını içeren PDF raporunu indirmek için tıklayın"
+                        file_name=f"{hisse_adi}_analiz_raporu.pdf",
+                        mime="application/pdf"
                     )
-                    st.success("✅ PDF raporu başarıyla hazırlandı! İndirmek için yukarıdaki butona tıklayın.")
-                else:
-                    st.error("❌ PDF raporu oluşturulamadı.")
-                    
-        except Exception as e:
-            st.error(f"PDF raporu oluşturulurken bir hata oluştu: {str(e)}")
+            except Exception as e:
+                st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
             
 def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
     """PDF raporu oluşturur"""
-    # PDF buffer oluştur
     buffer = io.BytesIO()
     
     try:
@@ -1234,51 +1325,26 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         story = []
         
         # Başlık
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=24,
-            spaceAfter=30
-        )
-        story.append(Paragraph(f"{hisse_adi} Hisse Analiz Raporu", title_style))
+        story.append(Paragraph(f"{hisse_adi} Hisse Analiz Raporu", styles['Heading1']))
         story.append(Spacer(1, 12))
-        
-        # Tarih
-        date_style = ParagraphStyle(
-            'DateStyle',
-            parent=styles['Normal'],
-            fontSize=12,
-            textColor=colors.gray
-        )
-        story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", date_style))
+        story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['Normal']))
         story.append(Spacer(1, 20))
         
-        # Genel Durum
-        story.append(Paragraph("1. Genel Durum", styles['Heading2']))
+        # Teknik Analiz
+        story.append(Paragraph("1. Teknik Analiz", styles['Heading2']))
         story.append(Spacer(1, 12))
-        
-        general_data = [
-            ["Metrik", "Değer"],
-            ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}"],
-            ["Trend", summary['trend']],
-            ["Risk Durumu", summary['risk_durumu']],
-            ["MACD Sinyali", summary['macd_signal']],
-            ["Bollinger", summary['bollinger_signal']]
+        technical_data = [
+            ["Gösterge", "Değer", "Sinyal"],
+            ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}", "-"],
+            ["RSI", f"{summary['rsi']:.2f}", summary['rsi_signal']],
+            ["MACD", f"{summary['macd']:.2f}", summary['macd_signal']],
+            ["Bollinger", f"₺{summary['bollinger_middle']:.2f}", summary['bollinger_signal']]
         ]
-        
-        t = Table(general_data, colWidths=[200, 300])
+        t = Table(technical_data)
         t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
         ]))
         story.append(t)
         story.append(Spacer(1, 20))
@@ -1286,28 +1352,18 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         # Risk Analizi
         story.append(Paragraph("2. Risk Analizi", styles['Heading2']))
         story.append(Spacer(1, 12))
-        
         risk_data = [
             ["Metrik", "Değer"],
+            ["Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}"],
             ["Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}"],
-            ["VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.1f}"],
-            ["Volatilite", f"%{risk_metrics['Volatilite']*100:.1f}"],
-            ["Maximum Drawdown", f"%{risk_metrics['Max Drawdown']*100:.1f}"]
+            ["VaR (%95)", f"₺{risk_metrics['VaR_95']:.2f}"],
+            ["Maksimum Kayıp", f"%{risk_metrics['VaR_99']*100:.2f}"]
         ]
-        
-        t = Table(risk_data, colWidths=[200, 300])
+        t = Table(risk_data)
         t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
         ]))
         story.append(t)
         story.append(Spacer(1, 20))
@@ -1315,7 +1371,6 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         # İstatistiksel Analiz
         story.append(Paragraph("3. İstatistiksel Analiz", styles['Heading2']))
         story.append(Spacer(1, 12))
-        
         stats_data = [
             ["Metrik", "Değer"],
             ["Ortalama Getiri", f"%{stats_results['Ortalama Getiri']*100:.2f}"],
@@ -1323,20 +1378,29 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
             ["Çarpıklık", f"{stats_results['Çarpıklık']:.2f}"],
             ["Basıklık", f"{stats_results['Basıklık']:.2f}"]
         ]
-        
-        t = Table(stats_data, colWidths=[200, 300])
+        t = Table(stats_data)
         t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 20))
+        
+        # Tahminler
+        story.append(Paragraph("4. Tahminler", styles['Heading2']))
+        story.append(Spacer(1, 12))
+        predictions_data = [
+            ["Dönem", "Tahmini Fiyat"],
+            ["1 Gün", f"₺{predictions['1_gun']:.2f}"],
+            ["1 Hafta", f"₺{predictions['1_hafta']:.2f}"],
+            ["1 Ay", f"₺{predictions['1_ay']:.2f}"]
+        ]
+        t = Table(predictions_data)
+        t.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
         ]))
         story.append(t)
         
