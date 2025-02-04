@@ -1,60 +1,30 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime, timedelta
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import StandardScaler
-import io
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-import yfinance as yf
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import plotly.express as px
 from scipy import stats
 from statsmodels.tsa.stattools import adfuller
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import GradientBoostingRegressor
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.stattools import acf
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import GradientBoostingRegressor
+import yfinance as yf
+import io
 import base64
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-
-def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
-    """PDF raporu oluşturur"""
-    try:
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        styles = getSampleStyleSheet()
-        story = []
-        
-        # Başlık
-        title = Paragraph(f"{hisse_adi} Hisse Analiz Raporu", styles['Title'])
-        story.append(title)
-        story.append(Spacer(1, 20))
-        
-        # Özet Bilgiler
-        story.append(Paragraph("1. Özet Bilgiler", styles['Heading1']))
-        text = f"""
-        Son Kapanış: ₺{df['close'].iloc[-1]:.2f}
-        Günlük Değişim: %{((df['close'].iloc[-1] / df['close'].iloc[-2]) - 1) * 100:.2f}
-        Hacim: {df['Volume'].iloc[-1]:,.0f}
-        """
-        story.append(Paragraph(text, styles['Normal']))
-        
-        # PDF oluştur
-        doc.build(story)
-        buffer.seek(0)
-        return buffer
-        
-    except Exception as e:
-        st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
-        return None
 
 # Yardımcı fonksiyonlar
 def calculate_technical_indicators(df):
@@ -280,8 +250,8 @@ def analyze_volume_scenarios(df, predictions):
     """Hacim senaryolarını analiz eder"""
     try:
         # Hacim durumu analizi
-        avg_volume = df['Volume'].mean()
-        current_volume = df['Volume'].iloc[-1]
+        avg_volume = df['Volume'].mean()  # Volume büyük harfle
+        current_volume = df['Volume'].iloc[-1]  # Volume büyük harfle
         volume_change = ((current_volume - avg_volume) / avg_volume) * 100
         
         # Hacim durumu belirleme
@@ -344,8 +314,8 @@ def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
         bb_status = "NORMAL ✅"
     
     # Hacim analizi
-    volume_avg = df['Volume'].mean()
-    current_volume = df['Volume'].iloc[-1]
+    volume_avg = df['Volume'].mean()  # Volume büyük harfle
+    current_volume = df['Volume'].iloc[-1]  # Volume büyük harfle
     volume_status = "YÜKSEK 💪" if current_volume > volume_avg * 1.5 else \
                    "DÜŞÜK 👎" if current_volume < volume_avg * 0.5 else \
                    "NORMAL 👍"
@@ -572,65 +542,16 @@ hisse_adi = st.text_input("Analiz edilecek hisse adını girin (örn: SISE):", "
 uploaded_file = st.file_uploader("CSV dosyasını yükleyin", type=['csv'])
 
 if uploaded_file is not None:
-    try:
-        # Dosya içeriğini oku
+    # Dosya adını kontrol et
+    if not uploaded_file.name.startswith(hisse_adi):
+        st.error(f"Lütfen {hisse_adi} ile başlayan bir CSV dosyası yükleyin!")
+    else:
+        # CSV dosyasını oku
         df = pd.read_csv(uploaded_file)
         
-        # Debug: CSV sütunlarını göster
-        st.write("CSV Sütunları:", df.columns.tolist())
-        
-        # Boş dosya kontrolü
-        if df.empty:
-            st.error("Yüklenen CSV dosyası boş!")
-            st.stop()
-        
-        # Sütun isimlerini küçük harfe çevir
-        df.columns = df.columns.str.lower()
-        
-        # Tarih sütununu kontrol et ve düzelt
-        date_columns = ['date', 'tarih', 'time', 'timestamp', 'datetime']
-        found_date_column = None
-        
-        for col in date_columns:
-            if col in df.columns:
-                found_date_column = col
-                break
-        
-        if found_date_column:
-            # Tarih sütununu yeniden adlandır
-            df = df.rename(columns={found_date_column: 'date'})
-        else:
-            st.error("CSV dosyasında tarih sütunu bulunamadı! Tarih sütunu şunlardan biri olmalıdır: " + ", ".join(date_columns))
-            st.stop()
-        
-        # Gerekli sütunları kontrol et
-        required_columns = ['open', 'high', 'low', 'close', 'volume']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        
-        if missing_columns:
-            st.error(f"CSV dosyasında eksik sütunlar var: {', '.join(missing_columns)}")
-            st.stop()
-        
-        # Tarihi index olarak ayarla
-        try:
-            # Unix timestamp kontrolü
-            if df['date'].dtype == 'int64' or df['date'].dtype == 'float64':
-                df['date'] = pd.to_datetime(df['date'], unit='s')
-            else:
-                df['date'] = pd.to_datetime(df['date'])
-            
-            df.set_index('date', inplace=True)
-            
-            # Sütun isimlerini büyük harfe çevir
-            df = df.rename(columns={'volume': 'Volume'})
-            
-        except Exception as e:
-            st.error(f"Tarih sütunu dönüştürülürken hata oluştu: {str(e)}")
-            st.info("Lütfen tarih sütununun doğru formatta olduğundan emin olun.")
-            st.stop()
-        
-        # Debug: Son DataFrame yapısını göster
-        st.write("DataFrame Yapısı:", df.head())
+        # Tarih sütununu düzenle
+        df['time'] = pd.to_datetime(df['time'], unit='s')
+        df.set_index('time', inplace=True)
         
         # Teknik göstergeleri hesapla
         df = calculate_technical_indicators(df)
@@ -645,11 +566,11 @@ if uploaded_file is not None:
             daily_return = ((df['close'].iloc[-1] / df['close'].iloc[-2]) - 1) * 100
             st.metric("Günlük Değişim", f"%{daily_return:.2f}")
         with col3:
-            volume_change = ((df['Volume'].iloc[-1] / df['Volume'].iloc[-2]) - 1) * 100
+            volume_change = ((df['Volume'].iloc[-1] / df['Volume'].iloc[-2]) - 1) * 100  # Volume büyük harfle
             st.metric("Hacim Değişimi", f"%{volume_change:.2f}")
         with col4:
-            st.metric("Günlük İşlem Hacmi", f"₺{df['Volume'].iloc[-1]:,.0f}")
-        
+            st.metric("Günlük İşlem Hacmi", f"₺{df['Volume'].iloc[-1]:,.0f}")  # Volume büyük harfle
+
         # 2. TEKNİK ANALİZ GRAFİKLERİ
         st.header("2. TEKNİK ANALİZ GRAFİKLERİ")
         
@@ -691,8 +612,8 @@ if uploaded_file is not None:
         st.plotly_chart(fig_volume)
         
         # Hacim analizi
-        avg_volume = df['Volume'].mean()
-        current_volume = df['Volume'].iloc[-1]
+        avg_volume = df['Volume'].mean()  # Volume büyük harfle
+        current_volume = df['Volume'].iloc[-1]  # Volume büyük harfle
         volume_change = ((current_volume - avg_volume) / avg_volume) * 100
         
         volume_analysis = f"""
@@ -782,7 +703,7 @@ if uploaded_file is not None:
         st.subheader("3.1 Temel İstatistikler")
         
         # Temel istatistikler
-        basic_stats = df[['close', 'Volume', 'Daily_Return']].describe()
+        basic_stats = df[['close', 'Volume', 'Daily_Return']].describe()  # Volume büyük harfle
         st.dataframe(basic_stats)
         
         # İstatistik yorumları
@@ -809,9 +730,9 @@ if uploaded_file is not None:
         - **Pozitif Getiri Günleri:** %{(df['Daily_Return'] > 0).mean()*100:.1f}
         
         **Hacim İstatistikleri:**
-        - **Ortalama Hacim:** {df['Volume'].mean():,.0f}
-        - **Maksimum Hacim:** {df['Volume'].max():,.0f}
-        - **Minimum Hacim:** {df['Volume'].min():,.0f}
+        - **Ortalama Hacim:** {df['Volume'].mean():,.0f}  # Volume büyük harfle
+        - **Maksimum Hacim:** {df['Volume'].max():,.0f}  # Volume büyük harfle
+        - **Minimum Hacim:** {df['Volume'].min():,.0f}  # Volume büyük harfle
         """
         
         st.markdown(stats_analysis)
@@ -1122,7 +1043,7 @@ if uploaded_file is not None:
         st.header("7. KORELASYON ANALİZİ")
         
         # Korelasyon matrisi
-        corr_matrix = df[['open', 'high', 'low', 'close', 'Volume', 'Daily_Return', 'RSI']].corr()
+        corr_matrix = df[['open', 'high', 'low', 'close', 'Volume', 'Daily_Return', 'RSI']].corr()  # Volume büyük harfle
         
         # Korelasyon haritası
         fig_corr = plt.figure(figsize=(10, 8))
@@ -1144,9 +1065,9 @@ if uploaded_file is not None:
         2. **Momentum Durumu:** {}
         3. **Volatilite Etkisi:** {}
         """.format(
-            "Güçlü" if abs(corr_matrix.loc['close', 'Volume']) > 0.5 else "Zayıf",
+            "Güçlü" if abs(corr_matrix.loc['close', 'Volume']) > 0.5 else "Zayıf",  # Volume büyük harfle
             "Trend devam ediyor" if corr_matrix.loc['close', 'RSI'] > 0.7 else "Trend zayıflıyor",
-            "Yüksek" if abs(corr_matrix.loc['Daily_Return', 'Volume']) > 0.3 else "Düşük"
+            "Yüksek" if abs(corr_matrix.loc['Daily_Return', 'Volume']) > 0.3 else "Düşük"  # Volume büyük harfle
         ))
 
         # 8. İSTATİSTİKSEL ANALİZ
@@ -1278,7 +1199,7 @@ if uploaded_file is not None:
 
         # 10. PDF RAPORU
         st.header("10. PDF Raporu")
-
+        
         try:
             # PDF oluştur
             pdf_buffer = create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
@@ -1301,12 +1222,142 @@ if uploaded_file is not None:
             st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
             st.info("Lütfen tekrar deneyin veya destek ekibiyle iletişime geçin.")
 
-    except pd.errors.EmptyDataError:
-        st.error("Yüklenen CSV dosyası boş veya geçersiz!")
-        st.stop()
+def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
+    """PDF raporu oluşturur"""
+    # PDF buffer oluştur
+    buffer = io.BytesIO()
+    
+    try:
+        # PDF dokümanı oluştur
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Başlık
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30
+        )
+        story.append(Paragraph(f"{hisse_adi} Hisse Analiz Raporu", title_style))
+        story.append(Spacer(1, 12))
+        
+        # Tarih
+        date_style = ParagraphStyle(
+            'DateStyle',
+            parent=styles['Normal'],
+            fontSize=12,
+            textColor=colors.gray
+        )
+        story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", date_style))
+        story.append(Spacer(1, 20))
+        
+        # Genel Durum
+        story.append(Paragraph("1. Genel Durum", styles['Heading2']))
+        story.append(Spacer(1, 12))
+        
+        general_data = [
+            ["Metrik", "Değer"],
+            ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}"],
+            ["Trend", summary['trend']],
+            ["Risk Durumu", summary['risk_durumu']],
+            ["MACD Sinyali", summary['macd_signal']],
+            ["Bollinger", summary['bollinger_signal']]
+        ]
+        
+        t = Table(general_data, colWidths=[200, 300])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 20))
+        
+        # Risk Analizi
+        story.append(Paragraph("2. Risk Analizi", styles['Heading2']))
+        story.append(Spacer(1, 12))
+        
+        risk_data = [
+            ["Metrik", "Değer"],
+            ["Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}"],
+            ["VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.1f}"],
+            ["Volatilite", f"%{risk_metrics['Volatilite']*100:.1f}"],
+            ["Maximum Drawdown", f"%{risk_metrics['Max Drawdown']*100:.1f}"]
+        ]
+        
+        t = Table(risk_data, colWidths=[200, 300])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 20))
+        
+        # İstatistiksel Analiz
+        story.append(Paragraph("3. İstatistiksel Analiz", styles['Heading2']))
+        story.append(Spacer(1, 12))
+        
+        stats_data = [
+            ["Metrik", "Değer"],
+            ["Ortalama Getiri", f"%{stats_results['Ortalama Getiri']*100:.2f}"],
+            ["Standart Sapma", f"%{stats_results['Standart Sapma']*100:.2f}"],
+            ["Çarpıklık", f"{stats_results['Çarpıklık']:.2f}"],
+            ["Basıklık", f"{stats_results['Basıklık']:.2f}"]
+        ]
+        
+        t = Table(stats_data, colWidths=[200, 300])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(t)
+        
+        # PDF oluştur
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+        
     except Exception as e:
-        st.error(f"Dosya okuma hatası: {str(e)}")
-        st.stop()
+        st.error(f"PDF oluşturulurken bir hata oluştu: {str(e)}")
+        return None
+
+# Ana uygulama
+if uploaded_file is not None:
+    # Dosya adını kontrol et
+    if not uploaded_file.name.startswith(hisse_adi):
+        st.error(f"Lütfen {hisse_adi} ile başlayan bir CSV dosyası yükleyin!")
+    else:
+        # CSV dosyasını oku ve analizleri yap
+        df = pd.read_csv(uploaded_file)
+        # ... diğer analizler ...
 else:
-    st.info("Lütfen bir CSV dosyası yükleyin.")
-    st.stop()
+    st.info(f"Lütfen önce hisse adını girin ve ardından {hisse_adi if hisse_adi else 'hisse adı'} ile başlayan CSV dosyasını yükleyin.")
+
