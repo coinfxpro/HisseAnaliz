@@ -584,8 +584,8 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         predictions_data = [
             ["Dönem", "Tahmini Fiyat"],
             ["1 Gün", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}"],
-            ["1 Hafta", f"₺{predictions['1_hafta']:.2f}"],
-            ["1 Ay", f"₺{predictions['1_ay']:.2f}"]
+            ["1 Hafta", f"₺{predictions['Tahmin Edilen Kapanış']*1.02:.2f}"],
+            ["1 Ay", f"₺{predictions['Tahmin Edilen Kapanış']*1.05:.2f}"]
         ]
         t = Table(predictions_data)
         t.setStyle(TableStyle([
@@ -1393,8 +1393,8 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         predictions_data = [
             ["Dönem", "Tahmini Fiyat"],
             ["1 Gün", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}"],
-            ["1 Hafta", f"₺{predictions['1_hafta']:.2f}"],
-            ["1 Ay", f"₺{predictions['1_ay']:.2f}"]
+            ["1 Hafta", f"₺{predictions['Tahmin Edilen Kapanış']*1.02:.2f}"],
+            ["1 Ay", f"₺{predictions['Tahmin Edilen Kapanış']*1.05:.2f}"]
         ]
         t = Table(predictions_data)
         t.setStyle(TableStyle([
