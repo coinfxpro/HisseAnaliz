@@ -527,9 +527,9 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         technical_data = [
             ["Gösterge", "Değer", "Sinyal"],
             ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}", "-"],
-            ["RSI", f"{summary['RSI']:.2f}", summary['RSI_signal']],
-            ["MACD", f"{summary['MACD']:.2f}", summary['MACD_signal']],
-            ["Bollinger", f"₺{summary['Bollinger_middle']:.2f}", summary['Bollinger_signal']]
+            ["RSI", f"{summary['RSI Durumu']}", "-"],
+            ["MACD", f"{summary['MACD Sinyali']}", "-"],
+            ["Bollinger", f"₺{summary['Bollinger']}", "-"]
         ]
         t = Table(technical_data)
         t.setStyle(TableStyle([
@@ -583,7 +583,7 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         story.append(Spacer(1, 12))
         predictions_data = [
             ["Dönem", "Tahmini Fiyat"],
-            ["1 Gün", f"₺{predictions['1_gun']:.2f}"],
+            ["1 Gün", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}"],
             ["1 Hafta", f"₺{predictions['1_hafta']:.2f}"],
             ["1 Ay", f"₺{predictions['1_ay']:.2f}"]
         ]
@@ -1336,9 +1336,9 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         technical_data = [
             ["Gösterge", "Değer", "Sinyal"],
             ["Son Fiyat", f"₺{df['close'].iloc[-1]:.2f}", "-"],
-            ["RSI", f"{summary['RSI']:.2f}", summary['RSI_signal']],
-            ["MACD", f"{summary['MACD']:.2f}", summary['MACD_signal']],
-            ["Bollinger", f"₺{summary['Bollinger_middle']:.2f}", summary['Bollinger_signal']]
+            ["RSI", f"{summary['RSI Durumu']}", "-"],
+            ["MACD", f"{summary['MACD Sinyali']}", "-"],
+            ["Bollinger", f"₺{summary['Bollinger']}", "-"]
         ]
         t = Table(technical_data)
         t.setStyle(TableStyle([
@@ -1392,7 +1392,7 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         story.append(Spacer(1, 12))
         predictions_data = [
             ["Dönem", "Tahmini Fiyat"],
-            ["1 Gün", f"₺{predictions['1_gun']:.2f}"],
+            ["1 Gün", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}"],
             ["1 Hafta", f"₺{predictions['1_hafta']:.2f}"],
             ["1 Ay", f"₺{predictions['1_ay']:.2f}"]
         ]
