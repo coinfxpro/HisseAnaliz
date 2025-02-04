@@ -1263,6 +1263,17 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
         return None
 
 # Ana uygulama
+st.set_page_config(
+    page_title="Hisse Senedi Analizi",
+    page_icon="📈",
+    layout="wide"
+)
+
+st.title("📈 Hisse Senedi Analizi")
+
+# Dosya yükleme
+uploaded_file = st.file_uploader("CSV Dosyası Yükle", type=['csv'])
+
 if uploaded_file is not None:
     try:
         # Dosya içeriğini oku
@@ -1285,9 +1296,7 @@ if uploaded_file is not None:
         df['Date'] = pd.to_datetime(df['Date'])
         df.set_index('Date', inplace=True)
         
-        # Teknik göstergeleri hesapla
-        df = calculate_technical_indicators(df)
-        
+        # Analizlere devam et...
         # ... diğer analizler ...
         
     except pd.errors.EmptyDataError:
