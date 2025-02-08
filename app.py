@@ -894,38 +894,74 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         # YARIN İÇİN TAHMİNLER
         st.subheader("🎯 Yarın İçin Tahminler")
         
-        # Fiyat aralığı tahmini
+        # Son kapanış fiyatı
+        son_fiyat = df['close'].iloc[-1]
+        
+        # Son 5 günlük fiyat değişim yüzdesi ortalaması
+        son_5_gun_degisim = df['close'].pct_change().tail(5).mean()
+        
+        # Fiyat aralığı tahmini için volatilite
         price_std = df['close'].pct_change().std()
-        expected_move = son_fiyat * price_std
         
         # RSI ve Momentum bazlı düzeltme
         rsi = df['RSI'].iloc[-1]
         momentum = df['close'].diff(5).iloc[-1]
+        macd = df['MACD'].iloc[-1]
+        signal = df['Signal_Line'].iloc[-1]
         
-        # RSI ve momentum bazlı düzeltme faktörü
+        # Temel tahmin - ARIMA tahminini baz alalım
+        base_prediction = predictions['Tahmin Edilen Kapanış']
+        
+        # Teknik göstergelere göre düzeltme faktörü
         adjustment = 1.0
+        
+        # RSI bazlı düzeltme
         if rsi > 70:
-            adjustment *= 0.95  # Aşırı alım - düşüş olasılığı
+            adjustment *= 0.995  # Aşırı alım - hafif düşüş beklentisi
         elif rsi < 30:
-            adjustment *= 1.05  # Aşırı satım - yükseliş olasılığı
+            adjustment *= 1.005  # Aşırı satım - hafif yükseliş beklentisi
         
-        if momentum > 0:
-            adjustment *= 1.02  # Pozitif momentum
+        # MACD bazlı düzeltme
+        if macd > signal:
+            adjustment *= 1.002  # Yükseliş sinyali
         else:
-            adjustment *= 0.98  # Negatif momentum
+            adjustment *= 0.998  # Düşüş sinyali
         
-        # ARIMA ve teknik analiz tahminlerini birleştir
-        predicted_close = predictions['Tahmin Edilen Kapanış'] * adjustment
-        predicted_high = predicted_close + expected_move
-        predicted_low = predicted_close - expected_move
-        predicted_open = (predicted_high + predicted_low) / 2
+        # Momentum bazlı düzeltme
+        if momentum > 0:
+            adjustment *= 1.001  # Pozitif momentum
+        else:
+            adjustment *= 0.999  # Negatif momentum
+        
+        # Son 5 günlük trend bazlı düzeltme
+        if son_5_gun_degisim > 0:
+            adjustment *= 1.001
+        else:
+            adjustment *= 0.999
+        
+        # Tahminleri hesapla
+        predicted_close = base_prediction * adjustment
+        
+        # Gün içi değişim aralığını hesapla (son 20 günlük ortalama)
+        avg_daily_range = (df['high'] - df['low']).tail(20).mean() / df['close'].tail(20).mean()
+        expected_range = predicted_close * avg_daily_range
+        
+        # Açılış fiyatı tahmini (son kapanışa daha yakın olmalı)
+        predicted_open = son_fiyat * (1 + (predicted_close/son_fiyat - 1) * 0.3)
+        
+        # Yüksek ve düşük tahminleri
+        predicted_high = max(predicted_open, predicted_close) + (expected_range/2)
+        predicted_low = min(predicted_open, predicted_close) - (expected_range/2)
+        
+        # Değişim yüzdesi
+        predicted_change = ((predicted_close - son_fiyat) / son_fiyat) * 100
         
         # Tahmin güvenilirliği
-        confidence = "Yüksek" if abs(predictions['Değişim']) < 2 else "Orta" if abs(predictions['Değişim']) < 5 else "Düşük"
+        confidence = "Yüksek" if abs(predicted_change) < 2 else "Orta" if abs(predicted_change) < 5 else "Düşük"
         
         pred_cols = st.columns(2)
         with pred_cols[0]:
-            st.metric("Tahmini Kapanış", f"₺{predicted_close:.2f}", f"%{predictions['Değişim']:.2f}")
+            st.metric("Tahmini Kapanış", f"₺{predicted_close:.2f}", f"%{predicted_change:.2f}")
             st.metric("Tahmini En Yüksek", f"₺{predicted_high:.2f}")
         with pred_cols[1]:
             st.metric("Tahmini Açılış", f"₺{predicted_open:.2f}")
@@ -933,17 +969,22 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
             
         st.info(f"""
         **📊 Tahmin Detayları:**
-        - Beklenen Fiyat Aralığı: ₺{predicted_low:.2f} - ₺{predicted_high:.2f}
+        - Beklenen İşlem Aralığı: ₺{predicted_low:.2f} - ₺{predicted_high:.2f}
         - Tahmin Güvenilirliği: {confidence}
         
         **💡 Tahmin Faktörleri:**
-        1. RSI Durumu: {'Aşırı Alım - Düşüş Baskısı' if rsi > 70 else 'Aşırı Satım - Yükseliş Potansiyeli' if rsi < 30 else 'Normal Seviye'}
-        2. Momentum: {'Pozitif' if momentum > 0 else 'Negatif'}
-        3. Volatilite Beklentisi: {'Yüksek' if price_std > 0.02 else 'Normal' if price_std > 0.01 else 'Düşük'}
+        1. RSI Durumu: {'Aşırı Alım - Düşüş Baskısı' if rsi > 70 else 'Aşırı Satım - Yükseliş Potansiyeli' if rsi < 30 else 'Normal Seviye'} ({rsi:.0f})
+        2. MACD Sinyali: {'Alış' if macd > signal else 'Satış'}
+        3. Momentum: {'Pozitif' if momentum > 0 else 'Negatif'}
+        4. Son 5 Günlük Trend: {'Yükseliş' if son_5_gun_degisim > 0 else 'Düşüş'} (%{son_5_gun_degisim*100:.2f})
+        5. Volatilite: {'Yüksek' if price_std > 0.02 else 'Normal' if price_std > 0.01 else 'Düşük'}
         
-        **⚠️ Not:** Bu tahminler istatistiksel modellere dayanmaktadır ve kesinlik içermez.
+        **⚠️ Not:** 
+        - Bu tahminler teknik analiz ve istatistiksel modellere dayanmaktadır
+        - Piyasa koşullarına göre sapma gösterebilir
+        - Önemli bir haber akışı durumunda tahminler geçerliliğini yitirebilir
         """)
-
+        
 def generate_technical_analysis(df):
     # Teknik analiz sonuçları
     technical_summary = {
