@@ -796,8 +796,17 @@ with col1:
              "Teknik Analiz Yap",
              "Veri ve İstatistiksel Analiz Yap"]
         )
-        
-        # Rapor hazırlama butonu
+
+# Ana içerik
+with col2:
+    # Başlık ve açıklama
+    st.title("📊 Hisse Senedi Analiz Platformu")
+    st.markdown("""
+    Bu uygulama ile hisse senetleri için detaylı teknik ve istatistiksel analizler yapabilirsiniz.
+    """)
+    
+    # Rapor hazırlama butonu ve sonuçlar
+    if 'uploaded_file' in locals() and uploaded_file is not None:
         if st.button("🚀 Raporu Hazırla", key="main_button"):
             if not uploaded_file.name.startswith(hisse_adi):
                 st.error(f"Lütfen {hisse_adi} ile başlayan bir CSV dosyası yükleyin!")
@@ -863,11 +872,3 @@ with col1:
                         st.error(f"Bir hata oluştu: {str(e)}")
                 except Exception as e:
                     st.error(f"CSV dosyası okunurken bir hata oluştu: {str(e)}")
-
-# Ana içerik
-with col2:
-    # Başlık ve açıklama
-    st.title("📊 Hisse Senedi Analiz Platformu")
-    st.markdown("""
-    Bu uygulama ile hisse senetleri için detaylı teknik ve istatistiksel analizler yapabilirsiniz.
-    """)
