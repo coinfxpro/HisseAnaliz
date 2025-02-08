@@ -591,69 +591,175 @@ with st.sidebar:
 
 def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis):
     # Kapsamlı rapor oluştur
-    st.header("Kapsamlı Rapor")
-    st.subheader("Özet Bilgiler")
-    st.write(summary)
+    st.header("Kapsamlı Analiz Raporu")
     
-    # Teknik analiz
-    st.subheader("Teknik Analiz")
-    st.write("Teknik analiz sonuçları...")
+    # 1. ÖZET BİLGİLER
+    st.header("1. ÖZET BİLGİLER")
+    col1, col2, col3, col4 = st.columns(4)
     
-    # İstatistiksel analiz
-    st.subheader("İstatistiksel Analiz")
-    st.write("İstatistiksel analiz sonuçları...")
+    with col1:
+        st.metric("Son Kapanış", f"₺{df['close'].iloc[-1]:.2f}")
+    with col2:
+        daily_return = ((df['close'].iloc[-1] / df['close'].iloc[-2]) - 1) * 100
+        st.metric("Günlük Değişim", f"%{daily_return:.2f}")
+    with col3:
+        volume_change = ((df['volume'].iloc[-1] / df['volume'].iloc[-2]) - 1) * 100
+        st.metric("Hacim Değişimi", f"%{volume_change:.2f}")
+    with col4:
+        st.metric("Günlük İşlem Hacmi", f"₺{df['volume'].iloc[-1]:,.0f}")
+
+    # 2. TEKNİK ANALİZ
+    st.header("2. TEKNİK ANALİZ")
     
-    # Risk analizi
-    st.subheader("Risk Analizi")
-    st.write("Risk analizi sonuçları...")
+    # Mum grafiği
+    fig_candlestick = create_candlestick_chart(df)
+    st.plotly_chart(fig_candlestick)
     
-    # Tahminler
-    st.subheader("Tahminler")
-    st.write("Tahminler...")
+    # Teknik göstergeler
+    col1, col2 = st.columns(2)
+    with col1:
+        # RSI grafiği
+        rsi_fig = create_technical_charts(df)[0]
+        st.plotly_chart(rsi_fig)
+    with col2:
+        # MACD grafiği
+        macd_fig = create_technical_charts(df)[1]
+        st.plotly_chart(macd_fig)
+
+    # 3. İSTATİSTİKSEL ANALİZ
+    st.header("3. İSTATİSTİKSEL ANALİZ")
     
-    # Alternatif senaryolar
-    st.subheader("Alternatif Senaryolar")
-    st.write("Alternatif senaryolar...")
+    # Temel istatistikler
+    st.subheader("3.1 Temel İstatistikler")
+    basic_stats = df[['close', 'volume', 'Daily_Return']].describe()
+    st.dataframe(basic_stats)
     
-    # Hacim analizi
-    st.subheader("Hacim Analizi")
-    st.write("Hacim analizi sonuçları...")
+    # Risk metrikleri
+    st.subheader("3.2 Risk Metrikleri")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}")
+    with col2:
+        st.metric("Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}")
+    with col3:
+        st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.2f}")
+
+    # 4. GELECEK TAHMİNLERİ
+    st.header("4. GELECEK TAHMİNLERİ")
+    
+    # Tahmin özeti
+    st.subheader("4.1 Fiyat Tahmini")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Yarınki Tahmin", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}")
+        st.metric("Beklenen Değişim", f"%{predictions['Değişim']:.2f}")
+    
+    # 5. PDF RAPORU
+    st.header("5. PDF Raporu")
+    create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
 
 def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, predictions):
-    # Teknik rapor oluştur
-    st.header("Teknik Rapor")
-    st.subheader("Teknik Analiz")
-    st.write(technical_summary)
+    st.header("Teknik Analiz Raporu")
     
-    # Risk analizi
-    st.subheader("Risk Analizi")
-    st.write("Risk analizi sonuçları...")
+    # 1. FİYAT GRAFİĞİ
+    st.subheader("1. Fiyat Grafiği")
+    fig_candlestick = create_candlestick_chart(df)
+    st.plotly_chart(fig_candlestick)
     
-    # Tahminler
-    st.subheader("Tahminler")
-    st.write("Tahminler...")
+    # 2. TEKNİK GÖSTERGELER
+    st.subheader("2. Teknik Göstergeler")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        # RSI
+        rsi_fig = create_technical_charts(df)[0]
+        st.plotly_chart(rsi_fig)
+        
+        current_rsi = df['RSI'].iloc[-1]
+        st.metric("RSI", f"{current_rsi:.2f}")
+        
+    with col2:
+        # MACD
+        macd_fig = create_technical_charts(df)[1]
+        st.plotly_chart(macd_fig)
+        
+        current_macd = df['MACD'].iloc[-1]
+        current_signal = df['Signal_Line'].iloc[-1]
+        st.metric("MACD", f"{current_macd:.3f}")
+        st.metric("Sinyal", f"{current_signal:.3f}")
+    
+    # 3. TREND ANALİZİ
+    st.subheader("3. Trend Analizi")
+    ma_cols = st.columns(3)
+    with ma_cols[0]:
+        st.metric("MA20", f"₺{df['MA20'].iloc[-1]:.2f}")
+    with ma_cols[1]:
+        st.metric("MA50", f"₺{df['MA50'].iloc[-1]:.2f}")
+    with ma_cols[2]:
+        st.metric("MA200", f"₺{df['MA200'].iloc[-1]:.2f}")
+    
+    # 4. RİSK METRİKLERİ
+    st.subheader("4. Risk Metrikleri")
+    risk_cols = st.columns(3)
+    with risk_cols[0]:
+        st.metric("Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}")
+    with risk_cols[1]:
+        st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.2f}")
+    with risk_cols[2]:
+        st.metric("Max Drawdown", f"%{risk_metrics['Max Drawdown']*100:.2f}")
+    
+    # 5. TAHMİNLER
+    st.subheader("5. Yarınki Tahminler")
+    pred_cols = st.columns(2)
+    with pred_cols[0]:
+        st.metric("Tahmin Edilen Kapanış", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}")
+    with pred_cols[1]:
+        st.metric("Beklenen Değişim", f"%{predictions['Değişim']:.2f}")
 
 def create_statistical_report(hisse_adi, df, stats_results, pattern_results, seasonality_analysis, risk_metrics, predictions):
-    # İstatistiksel rapor oluştur
-    st.header("İstatistiksel Rapor")
-    st.subheader("İstatistiksel Analiz")
-    st.write("İstatistiksel analiz sonuçları...")
+    st.header("İstatistiksel Analiz Raporu")
     
-    # Örüntü analizi
-    st.subheader("Örüntü Analizi")
-    st.write("Örüntü analizi sonuçları...")
+    # 1. TEMEL İSTATİSTİKLER
+    st.subheader("1. Temel İstatistikler")
+    basic_stats = df[['close', 'volume', 'Daily_Return']].describe()
+    st.dataframe(basic_stats)
     
-    # Mevsimsellik analizi
-    st.subheader("Mevsimsellik Analizi")
-    st.write("Mevsimsellik analizi sonuçları...")
+    # 2. İSTATİSTİKSEL TESTLER
+    st.subheader("2. İstatistiksel Testler")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Durağanlık Testi (ADF)", f"p-değeri: {stats_results['ADF p-değeri']:.4f}")
+        st.metric("Normallik Testi", f"p-değeri: {stats_results['Normallik p-değeri']:.4f}")
+    with col2:
+        st.metric("Otokorelasyon", f"{stats_results['Otokorelasyon']:.4f}")
+        st.metric("Çarpıklık", f"{stats_results['Çarpıklık']:.4f}")
     
-    # Risk analizi
-    st.subheader("Risk Analizi")
-    st.write("Risk analizi sonuçları...")
+    # 3. ÖRÜNTÜ ANALİZİ
+    st.subheader("3. Örüntü Analizi")
+    if pattern_results['Mevsimsellik']:
+        st.info("ℹ Mevsimsel örüntü tespit edildi")
+    if pattern_results['Otokorelasyon']:
+        st.info("ℹ Fiyat hareketlerinde süreklilik tespit edildi")
+    if pattern_results['Trend Gücü'] > 1:
+        st.warning(f"⚠️ Güçlü trend (z-skor: {pattern_results['Trend Gücü']:.2f})")
     
-    # Tahminler
-    st.subheader("Tahminler")
-    st.write("Tahminler...")
+    # 4. RİSK ANALİZİ
+    st.subheader("4. Risk Analizi")
+    risk_cols = st.columns(3)
+    with risk_cols[0]:
+        st.metric("Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}")
+    with risk_cols[1]:
+        st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.2f}")
+    with risk_cols[2]:
+        st.metric("Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}")
+    
+    # 5. TAHMİNLER
+    st.subheader("5. Gelecek Tahmini")
+    pred_cols = st.columns(2)
+    with pred_cols[0]:
+        st.metric("Yarınki Tahmin", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}")
+    with pred_cols[1]:
+        st.metric("Beklenen Değişim", f"%{predictions['Değişim']:.2f}")
 
 def generate_technical_analysis(df):
     # Teknik analiz sonuçları
