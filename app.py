@@ -635,8 +635,36 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
     with content_col:
         st.header("📊 İstatistiksel Analiz Raporu")
         
-        # 1. TEMEL İSTATİSTİKLER VE GETİRİ ANALİZİ
-        st.subheader("1. 📈 Temel İstatistikler ve Getiri Analizi")
+        # GÜNCEL FİYAT BİLGİLERİ
+        st.subheader("📈 Güncel Fiyat Bilgileri")
+        
+        son_fiyat = df['close'].iloc[-1]
+        gunluk_degisim = ((son_fiyat - df['close'].iloc[-2]) / df['close'].iloc[-2]) * 100
+        haftalik_degisim = ((son_fiyat - df['close'].iloc[-6]) / df['close'].iloc[-6]) * 100
+        aylik_degisim = ((son_fiyat - df['close'].iloc[-22]) / df['close'].iloc[-22]) * 100
+        
+        price_cols = st.columns(4)
+        with price_cols[0]:
+            st.metric("Son Fiyat", f"₺{son_fiyat:.2f}", f"%{gunluk_degisim:.2f}")
+        with price_cols[1]:
+            st.metric("Günlük Değişim", f"%{gunluk_degisim:.2f}")
+        with price_cols[2]:
+            st.metric("Haftalık Değişim", f"%{haftalik_degisim:.2f}")
+        with price_cols[3]:
+            st.metric("Aylık Değişim", f"%{aylik_degisim:.2f}")
+            
+        # Son işlem günü değerleri
+        st.info(f"""
+        **📊 Son İşlem Günü Değerleri:**
+        - Açılış: ₺{df['open'].iloc[-1]:.2f}
+        - En Yüksek: ₺{df['high'].iloc[-1]:.2f}
+        - En Düşük: ₺{df['low'].iloc[-1]:.2f}
+        - Kapanış: ₺{df['close'].iloc[-1]:.2f}
+        - Hacim: {df['volume'].iloc[-1]:,.0f}
+        """)
+        
+        # TEMEL İSTATİSTİKLER VE GETİRİ ANALİZİ
+        st.subheader("📈 Temel İstatistikler ve Getiri Analizi")
         
         # Temel istatistikler tablosu
         stats_df = df[['close', 'volume', 'Daily_Return']].describe()
@@ -662,8 +690,8 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         - {'🎯 Büyük kazanç fırsatları mevcut' if skewness > 0 else '⚠️ Büyük kayıp riski mevcut'} 
         """)
         
-        # 2. RİSK ANALİZİ
-        st.subheader("2. ⚠️ Detaylı Risk Analizi")
+        # RİSK ANALİZİ
+        st.subheader("⚠️ Detaylı Risk Analizi")
         
         # Risk metrikleri hesaplama
         risk_free_rate = 0.05  # Risksiz faiz oranı
@@ -701,15 +729,54 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         3. {'🎯 Kademeli alım stratejisi önerilir' if sharpe < 0.5 else '✅ Normal alım stratejisi'}
         """)
         
-        # 3. ÖRÜNTÜ VE ANOMALİ ANALİZİ
-        st.subheader("3. 🔍 Örüntü ve Anomali Analizi")
+        # ÖRÜNTÜ VE ANOMALİ ANALİZİ
+        st.subheader("🔍 Örüntü ve Anomali Analizi")
         
         # Mevsimsellik analizi
         try:
             decomposition = seasonal_decompose(df['close'], period=30)
+            seasonal_pattern = decomposition.seasonal[-30:]  # Son 30 günlük mevsimsel pattern
             seasonal_strength = np.std(decomposition.seasonal) / np.std(decomposition.resid)
             has_seasonality = seasonal_strength > 0.1
-        except:
+            
+            # Mevsimsel döngülerin analizi
+            monthly_returns = df.groupby(df.index.month)['Daily_Return'].mean() * 100
+            best_month = monthly_returns.idxmax()
+            worst_month = monthly_returns.idxmin()
+            
+            # Haftalık analiz
+            weekly_returns = df.groupby(df.index.dayofweek)['Daily_Return'].mean() * 100
+            best_day = weekly_returns.idxmax()
+            worst_day = weekly_returns.idxmin()
+            
+            # Günlük pattern
+            hourly_pattern = seasonal_pattern.groupby(seasonal_pattern.index.day).mean()
+            strong_days = hourly_pattern[abs(hourly_pattern) > hourly_pattern.std()].index
+            
+            day_names = {0: 'Pazartesi', 1: 'Salı', 2: 'Çarşamba', 3: 'Perşembe', 4: 'Cuma'}
+            month_names = {1: 'Ocak', 2: 'Şubat', 3: 'Mart', 4: 'Nisan', 5: 'Mayıs', 6: 'Haziran',
+                         7: 'Temmuz', 8: 'Ağustos', 9: 'Eylül', 10: 'Ekim', 11: 'Kasım', 12: 'Aralık'}
+            
+            if has_seasonality:
+                st.info(f"""
+                🔄 **Mevsimsel Örüntü Analizi**
+                
+                **Aylık Döngüler:**
+                - En İyi Ay: {month_names[best_month]} (Ort. %{monthly_returns[best_month]:.2f})
+                - En Kötü Ay: {month_names[worst_month]} (Ort. %{monthly_returns[worst_month]:.2f})
+                
+                **Haftalık Döngüler:**
+                - En İyi Gün: {day_names[best_day]} (Ort. %{weekly_returns[best_day]:.2f})
+                - En Kötü Gün: {day_names[worst_day]} (Ort. %{weekly_returns[worst_day]:.2f})
+                
+                **💡 Alım-Satım Önerileri:**
+                1. Alım için en uygun dönem: {month_names[worst_month]} ayı, özellikle {day_names[worst_day]} günleri
+                2. Satış için en uygun dönem: {month_names[best_month]} ayı, özellikle {day_names[best_day]} günleri
+                3. Güçlü Fiyat Hareketleri: Ayın {', '.join(map(str, strong_days))}. günlerinde
+                
+                **⚠️ Not:** Bu örüntüler geçmiş veriye dayalıdır ve gelecekte değişebilir.
+                """)
+        except Exception as e:
             has_seasonality = False
             
         # Anomali tespiti
@@ -717,14 +784,6 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         returns_std = df['Daily_Return'].std()
         outliers = df[abs(df['Daily_Return'] - returns_mean) > 2 * returns_std]
         
-        if has_seasonality:
-            st.info("""
-            🔄 **Mevsimsel Örüntü Tespit Edildi**
-            - Periyodik fiyat hareketleri mevcut
-            - Alım-satım zamanlaması için bu döngüler kullanılabilir
-            - Mevsimsel etkileri göz önünde bulundurun
-            """)
-            
         if not outliers.empty:
             st.warning(f"""
             ⚠️ **Anomali Tespiti**
@@ -733,8 +792,8 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
             - Bu tarihler özel olarak incelenmeli
             """)
             
-        # 4. SONUÇ VE ÖNERİLER
-        st.subheader("4. 💡 Sonuç ve Öneriler")
+        # SONUÇ VE ÖNERİLER
+        st.subheader("💡 Sonuç ve Öneriler")
         
         # Son 20 günlük trend analizi
         last_20_change = ((df['close'].iloc[-1] - df['close'].iloc[-20]) / df['close'].iloc[-20]) * 100
@@ -759,6 +818,59 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         3. {'⚠️ Anormal fiyat hareketlerine dikkat!' if not outliers.empty else '✅ Fiyat hareketleri normal'}
         """)
         
+        # YARIN İÇİN TAHMİNLER
+        st.subheader("🎯 Yarın İçin Tahminler")
+        
+        # Fiyat aralığı tahmini
+        price_std = df['close'].pct_change().std()
+        expected_move = son_fiyat * price_std
+        
+        # RSI ve Momentum bazlı düzeltme
+        rsi = df['RSI'].iloc[-1]
+        momentum = df['close'].diff(5).iloc[-1]
+        
+        # RSI ve momentum bazlı düzeltme faktörü
+        adjustment = 1.0
+        if rsi > 70:
+            adjustment *= 0.95  # Aşırı alım - düşüş olasılığı
+        elif rsi < 30:
+            adjustment *= 1.05  # Aşırı satım - yükseliş olasılığı
+        
+        if momentum > 0:
+            adjustment *= 1.02  # Pozitif momentum
+        else:
+            adjustment *= 0.98  # Negatif momentum
+        
+        # ARIMA ve teknik analiz tahminlerini birleştir
+        predicted_close = predictions['Tahmin Edilen Kapanış'] * adjustment
+        predicted_high = predicted_close + expected_move
+        predicted_low = predicted_close - expected_move
+        predicted_open = (predicted_high + predicted_low) / 2
+        
+        # Tahmin güvenilirliği
+        confidence = "Yüksek" if abs(predictions['Değişim']) < 2 else "Orta" if abs(predictions['Değişim']) < 5 else "Düşük"
+        
+        pred_cols = st.columns(2)
+        with pred_cols[0]:
+            st.metric("Tahmini Kapanış", f"₺{predicted_close:.2f}", f"%{predictions['Değişim']:.2f}")
+            st.metric("Tahmini En Yüksek", f"₺{predicted_high:.2f}")
+        with pred_cols[1]:
+            st.metric("Tahmini Açılış", f"₺{predicted_open:.2f}")
+            st.metric("Tahmini En Düşük", f"₺{predicted_low:.2f}")
+            
+        st.info(f"""
+        **📊 Tahmin Detayları:**
+        - Beklenen Fiyat Aralığı: ₺{predicted_low:.2f} - ₺{predicted_high:.2f}
+        - Tahmin Güvenilirliği: {confidence}
+        
+        **💡 Tahmin Faktörleri:**
+        1. RSI Durumu: {'Aşırı Alım - Düşüş Baskısı' if rsi > 70 else 'Aşırı Satım - Yükseliş Potansiyeli' if rsi < 30 else 'Normal Seviye'}
+        2. Momentum: {'Pozitif' if momentum > 0 else 'Negatif'}
+        3. Volatilite Beklentisi: {'Yüksek' if price_std > 0.02 else 'Normal' if price_std > 0.01 else 'Düşük'}
+        
+        **⚠️ Not:** Bu tahminler istatistiksel modellere dayanmaktadır ve kesinlik içermez.
+        """)
+
 def generate_technical_analysis(df):
     # Teknik analiz sonuçları
     technical_summary = {
