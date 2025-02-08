@@ -569,7 +569,7 @@ with st.sidebar:
                                 stats_results = perform_statistical_analysis(df)
                                 pattern_results = analyze_statistical_patterns(df)
                                 scenarios = generate_alternative_scenarios(df, predictions)
-                                volume_analysis = analyze_volume_scenarios(df)
+                                volume_analysis = analyze_volume_scenarios(df, predictions)
                                 summary = generate_analysis_summary(df, predictions, risk_metrics, stats_results)
                                 
                                 # Kapsamlı rapor oluştur
