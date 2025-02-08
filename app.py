@@ -1,30 +1,15 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from datetime import datetime, timedelta
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+from datetime import datetime, timedelta
+from statsmodels.tsa.seasonal import seasonal_decompose
 import plotly.express as px
 from scipy import stats
 from statsmodels.tsa.stattools import adfuller
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import GradientBoostingRegressor
-from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.seasonal import seasonal_decompose
-from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-from statsmodels.tsa.stattools import acf
-import yfinance as yf
-import io
-import base64
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
+from arch import arch_model
+import warnings
+warnings.filterwarnings('ignore')
 
 # Fonksiyon tanımlamaları
 def calculate_technical_indicators(df):
@@ -768,6 +753,175 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
             
     except Exception as e:
         st.error(f"PDF raporu oluşturulurken bir hata oluştu: {str(e)}")
+
+def perform_advanced_statistical_analysis(df):
+    """Gelişmiş istatistiksel analiz yapar"""
+    results = {}
+    
+    # 1. Temel İstatistikler
+    returns = df['Daily_Return'].dropna()
+    results['Temel İstatistikler'] = {
+        'Ortalama Getiri': returns.mean(),
+        'Getiri Std': returns.std(),
+        'Minimum Getiri': returns.min(),
+        'Maksimum Getiri': returns.max(),
+        'Çarpıklık': returns.skew(),
+        'Basıklık': returns.kurtosis()
+    }
+    
+    # 2. Durağanlık Testleri
+    from statsmodels.tsa.stattools import adfuller, kpss
+    
+    # ADF Testi
+    adf_test = adfuller(df['close'])
+    results['Durağanlık'] = {
+        'ADF İstatistiği': adf_test[0],
+        'ADF p-değeri': adf_test[1],
+        'Kritik Değerler': adf_test[4]
+    }
+    
+    # 3. Otokorelasyon Analizi
+    from statsmodels.stats.diagnostic import acorr_ljungbox
+    lbx_test = acorr_ljungbox(returns, lags=10)
+    results['Otokorelasyon'] = {
+        'Ljung-Box İstatistiği': lbx_test.lb_stat.iloc[-1],
+        'Ljung-Box p-değeri': lbx_test.lb_pvalue.iloc[-1]
+    }
+    
+    # 4. Normallik Testleri
+    from scipy import stats
+    ks_stat, ks_p = stats.kstest(returns, 'norm')
+    results['Normallik'] = {
+        'Kolmogorov-Smirnov p-değeri': ks_p,
+        'Jarque-Bera p-değeri': stats.jarque_bera(returns)[1]
+    }
+    
+    return results
+
+def perform_time_series_analysis(df):
+    """Zaman serisi analizi yapar"""
+    results = {}
+    
+    # 1. Trend Analizi
+    from scipy.stats import linregress
+    x = np.arange(len(df))
+    slope, intercept, r_value, p_value, std_err = linregress(x, df['close'])
+    
+    results['Trend'] = {
+        'Eğim': slope,
+        'R-kare': r_value**2,
+        'P-değeri': p_value
+    }
+    
+    # 2. Mevsimsellik Analizi
+    decomposition = seasonal_decompose(df['close'], period=30)
+    results['Mevsimsellik'] = {
+        'Trend': decomposition.trend,
+        'Mevsimsel': decomposition.seasonal,
+        'Kalıntı': decomposition.resid
+    }
+    
+    # 3. ARIMA Modeli
+    from pmdarima import auto_arima
+    
+    # Otomatik ARIMA model seçimi
+    model = auto_arima(df['close'], seasonal=True, m=5,
+                      start_p=0, start_q=0, max_p=3, max_q=3,
+                      start_P=0, start_Q=0, max_P=2, max_Q=2,
+                      information_criterion='aic', trace=False,
+                      error_action='ignore', suppress_warnings=True)
+    
+    results['ARIMA'] = {
+        'Model Özeti': model.summary(),
+        'AIC': model.aic(),
+        'Parametre Sayısı': model.order
+    }
+    
+    return results
+
+def perform_pattern_analysis(df):
+    """Örüntü analizi yapar"""
+    results = {}
+    
+    # 1. Teknik Gösterge Örüntüleri
+    results['Teknik Örüntüler'] = {
+        'RSI Aşırı Alım': len(df[df['RSI'] > 70]),
+        'RSI Aşırı Satım': len(df[df['RSI'] < 30]),
+        'MACD Kesişme': len(df[df['MACD'] > df['Signal_Line']]) - len(df[df['MACD'] < df['Signal_Line']])
+    }
+    
+    # 2. Fiyat Formasyonları
+    results['Fiyat Formasyonları'] = detect_price_patterns(df)
+    
+    # 3. Volatilite Kümelenmeleri
+    from arch import arch_model
+    returns = df['Daily_Return'].dropna()
+    model = arch_model(returns, vol='Garch', p=1, q=1)
+    res = model.fit(disp='off')
+    
+    results['Volatilite'] = {
+        'GARCH Parametreleri': res.params,
+        'Volatilite Tahminleri': res.conditional_volatility
+    }
+    
+    return results
+
+def detect_price_patterns(df):
+    """Fiyat formasyonlarını tespit eder"""
+    patterns = {}
+    
+    # Destek ve Direnç Seviyeleri
+    pivots = calculate_pivot_points(df)
+    patterns['Pivot Noktaları'] = pivots
+    
+    # Trend Dönüş Formasyonları
+    patterns['Dönüş Formasyonları'] = {
+        'Çift Tepe': detect_double_top(df),
+        'Çift Dip': detect_double_bottom(df),
+        'Omuz Baş Omuz': detect_head_shoulders(df)
+    }
+    
+    return patterns
+
+def detect_double_top(df, threshold=0.02):
+    """Çift tepe formasyonu tespiti"""
+    highs = df['high'].rolling(window=20).max()
+    potential_tops = df[df['high'] >= highs * (1 - threshold)]
+    
+    if len(potential_tops) >= 2:
+        return {
+            'Tespit': True,
+            'İlk Tepe': potential_tops.index[0],
+            'İkinci Tepe': potential_tops.index[-1]
+        }
+    return {'Tespit': False}
+
+def detect_double_bottom(df, threshold=0.02):
+    """Çift dip formasyonu tespiti"""
+    lows = df['low'].rolling(window=20).min()
+    potential_bottoms = df[df['low'] <= lows * (1 + threshold)]
+    
+    if len(potential_bottoms) >= 2:
+        return {
+            'Tespit': True,
+            'İlk Dip': potential_bottoms.index[0],
+            'İkinci Dip': potential_bottoms.index[-1]
+        }
+    return {'Tespit': False}
+
+def detect_head_shoulders(df, threshold=0.02):
+    """Omuz baş omuz formasyonu tespiti"""
+    highs = df['high'].rolling(window=30).max()
+    potential_shoulders = df[df['high'] >= highs * (1 - threshold)]
+    
+    if len(potential_shoulders) >= 3:
+        return {
+            'Tespit': True,
+            'Sol Omuz': potential_shoulders.index[0],
+            'Baş': potential_shoulders.index[len(potential_shoulders)//2],
+            'Sağ Omuz': potential_shoulders.index[-1]
+        }
+    return {'Tespit': False}
 
 # Streamlit sayfa yapılandırması
 st.set_page_config(
