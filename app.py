@@ -1,14 +1,30 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+import seaborn as sns
 from datetime import datetime, timedelta
-from statsmodels.tsa.seasonal import seasonal_decompose
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import plotly.express as px
 from scipy import stats
 from statsmodels.tsa.stattools import adfuller
-import warnings
-warnings.filterwarnings('ignore')
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import GradientBoostingRegressor
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.tsa.stattools import acf
+import yfinance as yf
+import io
+import base64
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
 
 # Fonksiyon tanımlamaları
 def calculate_technical_indicators(df):
@@ -487,7 +503,7 @@ def calculate_fibonacci_levels(high, low):
     }
     return levels
 
-def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, content_col):
+def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis, content_col):
     with content_col:  # Ana içerik sütununda göster
         st.header("Kapsamlı Analiz Raporu")
         
@@ -615,7 +631,7 @@ def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, pred
         with pred_cols[1]:
             st.metric("Beklenen Değişim", f"%{predictions['Değişim']:.2f}")
 
-def create_statistical_report(hisse_adi, df, stats_results, predictions, content_col):
+def create_statistical_report(hisse_adi, df, stats_results, pattern_results, seasonality_analysis, risk_metrics, predictions, content_col):
     with content_col:  # Ana içerik sütununda göster
         st.header("İstatistiksel Analiz Raporu")
         
@@ -634,18 +650,27 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
             st.metric("Otokorelasyon", f"{stats_results['Otokorelasyon']:.4f}")
             st.metric("Çarpıklık", f"{stats_results['Çarpıklık']:.4f}")
         
-        # 3. RİSK ANALİZİ
-        st.subheader("3. Risk Analizi")
+        # 3. ÖRÜNTÜ ANALİZİ
+        st.subheader("3. Örüntü Analizi")
+        if pattern_results['Mevsimsellik']:
+            st.info("ℹ Mevsimsel örüntü tespit edildi")
+        if pattern_results['Otokorelasyon']:
+            st.info("ℹ Fiyat hareketlerinde süreklilik tespit edildi")
+        if pattern_results['Trend Gücü'] > 1:
+            st.warning(f"⚠️ Güçlü trend (z-skor: {pattern_results['Trend Gücü']:.2f})")
+        
+        # 4. RİSK ANALİZİ
+        st.subheader("4. Risk Analizi")
         risk_cols = st.columns(3)
         with risk_cols[0]:
-            st.metric("Volatilite", f"%{stats_results['Volatilite']*100:.2f}")
+            st.metric("Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}")
         with risk_cols[1]:
-            st.metric("VaR (%95)", f"%{abs(stats_results['VaR_95']*100):.2f}")
+            st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.2f}")
         with risk_cols[2]:
-            st.metric("Sharpe Oranı", f"{stats_results['Sharpe Oranı']:.2f}")
+            st.metric("Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}")
         
-        # 4. TAHMİNLER
-        st.subheader("4. Gelecek Tahmini")
+        # 5. TAHMİNLER
+        st.subheader("5. Gelecek Tahmini")
         pred_cols = st.columns(2)
         with pred_cols[0]:
             st.metric("Yarınki Tahmin", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}")
@@ -659,171 +684,90 @@ def generate_technical_analysis(df):
     }
     return technical_summary
 
-def perform_advanced_statistical_analysis(df):
-    """Gelişmiş istatistiksel analiz yapar"""
-    results = {}
-    
-    # 1. Temel İstatistikler
-    returns = df['Daily_Return'].dropna()
-    results['Temel İstatistikler'] = {
-        'Ortalama Getiri': returns.mean(),
-        'Getiri Std': returns.std(),
-        'Minimum Getiri': returns.min(),
-        'Maksimum Getiri': returns.max(),
-        'Çarpıklık': returns.skew(),
-        'Basıklık': returns.kurtosis()
-    }
-    
-    # 2. Durağanlık Testleri
-    # ADF Testi
-    adf_test = adfuller(df['close'])
-    results['Durağanlık'] = {
-        'ADF İstatistiği': adf_test[0],
-        'ADF p-değeri': adf_test[1],
-        'Kritik Değerler': adf_test[4]
-    }
-    
-    # 3. Normallik Testleri
-    ks_stat, ks_p = stats.kstest(returns, 'norm')
-    results['Normallik'] = {
-        'Kolmogorov-Smirnov p-değeri': ks_p,
-        'Jarque-Bera p-değeri': stats.jarque_bera(returns)[1]
-    }
-    
-    # 4. Volatilite Analizi
-    rolling_std = returns.rolling(window=20).std()
-    results['Volatilite'] = {
-        'Son Volatilite': rolling_std.iloc[-1],
-        'Ortalama Volatilite': rolling_std.mean(),
-        'Maksimum Volatilite': rolling_std.max()
-    }
-    
-    return results
+def perform_seasonality_analysis(df):
+    # Mevsimsellik analizi
+    seasonal_result = seasonal_decompose(df['close'], period=30)
+    seasonality = seasonal_result.seasonal[-1]
+    return seasonality
 
-def perform_time_series_analysis(df):
-    """Zaman serisi analizi yapar"""
-    results = {}
-    
-    # 1. Trend Analizi
-    x = np.arange(len(df))
-    slope, intercept, r_value, p_value, std_err = stats.linregress(x, df['close'])
-    
-    results['Trend'] = {
-        'Eğim': slope,
-        'R-kare': r_value**2,
-        'P-değeri': p_value
-    }
-    
-    # 2. Mevsimsellik Analizi
+def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
+    """PDF raporu oluşturur"""
     try:
-        decomposition = seasonal_decompose(df['close'], period=30)
-        results['Mevsimsellik'] = {
-            'Trend': decomposition.trend,
-            'Mevsimsel': decomposition.seasonal,
-            'Kalıntı': decomposition.resid
-        }
-    except:
-        results['Mevsimsellik'] = None
-    
-    # 3. Momentum Analizi
-    df['Momentum'] = df['close'].diff(periods=20)
-    results['Momentum'] = {
-        'Son Momentum': df['Momentum'].iloc[-1],
-        'Ortalama Momentum': df['Momentum'].mean()
-    }
-    
-    return results
-
-def perform_pattern_analysis(df):
-    """Örüntü analizi yapar"""
-    results = {}
-    
-    # 1. Teknik Gösterge Örüntüleri
-    results['Teknik Örüntüler'] = {
-        'RSI Aşırı Alım': len(df[df['RSI'] > 70]),
-        'RSI Aşırı Satım': len(df[df['RSI'] < 30]),
-        'MACD Kesişme': len(df[df['MACD'] > df['Signal_Line']]) - len(df[df['MACD'] < df['Signal_Line']])
-    }
-    
-    # 2. Fiyat Formasyonları
-    results['Fiyat Formasyonları'] = detect_price_patterns(df)
-    
-    # 3. Destek/Direnç Seviyeleri
-    results['Destek_Direnç'] = calculate_support_resistance(df)
-    
-    return results
-
-def calculate_support_resistance(df, window=20):
-    """Destek ve direnç seviyelerini hesaplar"""
-    highs = df['high'].rolling(window=window).max()
-    lows = df['low'].rolling(window=window).min()
-    
-    current_price = df['close'].iloc[-1]
-    
-    resistance_levels = highs[highs > current_price].unique()
-    support_levels = lows[lows < current_price].unique()
-    
-    return {
-        'Destek Seviyeleri': sorted(support_levels)[-3:],  # Son 3 destek seviyesi
-        'Direnç Seviyeleri': sorted(resistance_levels)[:3]  # İlk 3 direnç seviyesi
-    }
-
-def detect_price_patterns(df):
-    """Fiyat formasyonlarını tespit eder"""
-    patterns = {}
-    
-    # Destek ve Direnç Seviyeleri
-    support_resistance = calculate_support_resistance(df)
-    patterns['Destek_Direnç'] = support_resistance
-    
-    # Trend Dönüş Formasyonları
-    patterns['Dönüş Formasyonları'] = {
-        'Çift Tepe': detect_double_top(df),
-        'Çift Dip': detect_double_bottom(df),
-        'Omuz Baş Omuz': detect_head_shoulders(df)
-    }
-    
-    return patterns
-
-def detect_double_top(df, threshold=0.02):
-    """Çift tepe formasyonu tespiti"""
-    highs = df['high'].rolling(window=20).max()
-    potential_tops = df[df['high'] >= highs * (1 - threshold)]
-    
-    if len(potential_tops) >= 2:
-        return {
-            'Tespit': True,
-            'İlk Tepe': potential_tops.index[0],
-            'İkinci Tepe': potential_tops.index[-1]
-        }
-    return {'Tespit': False}
-
-def detect_double_bottom(df, threshold=0.02):
-    """Çift dip formasyonu tespiti"""
-    lows = df['low'].rolling(window=20).min()
-    potential_bottoms = df[df['low'] <= lows * (1 + threshold)]
-    
-    if len(potential_bottoms) >= 2:
-        return {
-            'Tespit': True,
-            'İlk Dip': potential_bottoms.index[0],
-            'İkinci Dip': potential_bottoms.index[-1]
-        }
-    return {'Tespit': False}
-
-def detect_head_shoulders(df, threshold=0.02):
-    """Omuz baş omuz formasyonu tespiti"""
-    highs = df['high'].rolling(window=30).max()
-    potential_shoulders = df[df['high'] >= highs * (1 - threshold)]
-    
-    if len(potential_shoulders) >= 3:
-        return {
-            'Tespit': True,
-            'Sol Omuz': potential_shoulders.index[0],
-            'Baş': potential_shoulders.index[len(potential_shoulders)//2],
-            'Sağ Omuz': potential_shoulders.index[-1]
-        }
-    return {'Tespit': False}
+        # PDF dosya adını oluştur
+        pdf_filename = f"{hisse_adi}_analiz_raporu.pdf"
+        
+        # PDF belgesini oluştur
+        doc = SimpleDocTemplate(pdf_filename, pagesize=letter)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Başlık ekle
+        title = Paragraph(f"{hisse_adi} Hisse Senedi Analiz Raporu", styles['Heading1'])
+        story.append(title)
+        story.append(Spacer(1, 12))
+        
+        # Özet bilgileri ekle
+        story.append(Paragraph("Özet Analiz", styles['Heading2']))
+        story.append(Paragraph(str(summary), styles['Normal']))
+        story.append(Spacer(1, 12))
+        
+        # Risk metrikleri ekle
+        story.append(Paragraph("Risk Metrikleri", styles['Heading2']))
+        risk_data = [[k, f"{v:.2f}" if isinstance(v, float) else str(v)] 
+                    for k, v in risk_metrics.items()]
+        risk_table = Table(risk_data)
+        risk_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(risk_table)
+        story.append(Spacer(1, 12))
+        
+        # İstatistiksel analiz sonuçları
+        story.append(Paragraph("İstatistiksel Analiz", styles['Heading2']))
+        stats_data = [[k, f"{v:.2f}" if isinstance(v, float) else str(v)] 
+                     for k, v in stats_results.items()]
+        stats_table = Table(stats_data)
+        stats_table.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ]))
+        story.append(stats_table)
+        story.append(Spacer(1, 12))
+        
+        # Tahminler
+        story.append(Paragraph("Gelecek Tahminleri", styles['Heading2']))
+        pred_data = [[k, f"{v:.2f}" if isinstance(v, float) else str(v)] 
+                    for k, v in predictions.items()]
+        pred_table = Table(pred_data)
+        pred_table.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ]))
+        story.append(pred_table)
+        
+        # PDF oluştur
+        doc.build(story)
+        
+        # Kullanıcıya indirme linki göster
+        with open(pdf_filename, "rb") as pdf_file:
+            st.download_button(
+                label="📥 PDF Raporunu İndir",
+                data=pdf_file,
+                file_name=pdf_filename,
+                mime="application/pdf"
+            )
+            
+    except Exception as e:
+        st.error(f"PDF raporu oluşturulurken bir hata oluştu: {str(e)}")
 
 # Streamlit sayfa yapılandırması
 st.set_page_config(
@@ -895,10 +839,13 @@ with content_col:
                             try:
                                 # Tüm analizleri yap
                                 stats_results = perform_statistical_analysis(df)
+                                pattern_results = analyze_statistical_patterns(df)
+                                scenarios = generate_alternative_scenarios(df, predictions)
+                                volume_analysis = analyze_volume_scenarios(df, predictions)
                                 summary = generate_analysis_summary(df, predictions, risk_metrics, stats_results)
                                 
                                 # Kapsamlı rapor oluştur
-                                create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, content_col)
+                                create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis, content_col)
                             except Exception as e:
                                 st.error(f"Kapsamlı rapor oluşturulurken bir hata oluştu: {str(e)}")
                             
@@ -912,9 +859,12 @@ with content_col:
                             
                         else:  # Veri ve İstatistiksel Analiz
                             try:
-                                # İstatistiksel analiz
-                                stats_results = perform_advanced_statistical_analysis(df)
-                                create_statistical_report(hisse_adi, df, stats_results, predictions, content_col)
+                                # İstatistiksel analiz ve örüntü analizi
+                                stats_results = perform_statistical_analysis(df)
+                                pattern_results = analyze_statistical_patterns(df)
+                                seasonality_analysis = perform_seasonality_analysis(df)
+                                create_statistical_report(hisse_adi, df, stats_results, pattern_results, 
+                                                       seasonality_analysis, risk_metrics, predictions, content_col)
                             except Exception as e:
                                 st.error(f"İstatistiksel analiz oluşturulurken bir hata oluştu: {str(e)}")
                         
