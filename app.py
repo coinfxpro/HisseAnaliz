@@ -785,12 +785,85 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         outliers = df[abs(df['Daily_Return'] - returns_mean) > 2 * returns_std]
         
         if not outliers.empty:
+            # Anomalileri sınıflandır
+            positive_anomalies = outliers[outliers['Daily_Return'] > returns_mean]
+            negative_anomalies = outliers[outliers['Daily_Return'] < returns_mean]
+            
+            # Son 30 gündeki anomaliler
+            recent_outliers = outliers[outliers.index >= outliers.index[-1] - pd.Timedelta(days=30)]
+            
+            # Hacim anomalileri
+            volume_mean = df['volume'].mean()
+            volume_std = df['volume'].std()
+            volume_outliers = df[df['volume'] > volume_mean + 2 * volume_std]
+            
+            # Fiyat ve hacim anomalilerinin kesişimi
+            combined_anomalies = pd.merge(outliers, volume_outliers, left_index=True, right_index=True, how='inner')
+            
             st.warning(f"""
-            ⚠️ **Anomali Tespiti**
-            - {len(outliers)} adet anormal fiyat hareketi tespit edildi
-            - En büyük anomali: %{outliers['Daily_Return'].abs().max()*100:.2f}
-            - Bu tarihler özel olarak incelenmeli
+            ⚠️ **Anomali Analizi**
+            
+            **📊 Tespit Edilen Anomaliler:**
+            - Toplam Anomali Sayısı: {len(outliers)} adet
+            - Pozitif Anomaliler: {len(positive_anomalies)} adet (Ortalama: %{positive_anomalies['Daily_Return'].mean()*100:.2f})
+            - Negatif Anomaliler: {len(negative_anomalies)} adet (Ortalama: %{negative_anomalies['Daily_Return'].mean()*100:.2f})
+            - Son 30 Günde: {len(recent_outliers)} adet
+            
+            **🔍 Önemli Anomali Tarihleri:**
+            {outliers.sort_values('Daily_Return', ascending=False)[['Daily_Return']].head().apply(lambda x: f"- {x.name.strftime('%d/%m/%Y')}: %{x['Daily_Return']*100:.2f}", axis=1).str.cat(sep='\\n')}
+            
+            **📈 Hacim Anomalileri ile Kesişim:**
+            - {len(combined_anomalies)} adet fiyat hareketi yüksek hacim ile destekleniyor
+            
+            **💡 Dikkat Edilmesi Gereken Durumlar:**
+            1. {'⚠️ Son 30 günde yüksek anomali - Dikkatli olunmalı!' if len(recent_outliers) > 0 else '✅ Son 30 günde önemli anomali yok'}
+            2. Ani Yükseliş Riski: %{positive_anomalies['Daily_Return'].max()*100:.2f}
+            3. Ani Düşüş Riski: %{abs(negative_anomalies['Daily_Return'].min()*100):.2f}
+            
+            **🎯 Öneriler:**
+            1. Stop-Loss Seviyeleri: ₺{df['close'].iloc[-1] * (1 - abs(negative_anomalies['Daily_Return'].mean())):.2f}
+            2. Kar Al Seviyeleri: ₺{df['close'].iloc[-1] * (1 + positive_anomalies['Daily_Return'].mean()):.2f}
+            3. {'⚠️ Yüksek hacimli işlemlerde dikkatli olun' if len(combined_anomalies) > 0 else '✅ Hacim seviyeleri normal'}
             """)
+            
+            # Anomali grafiği
+            fig = go.Figure()
+            
+            # Normal fiyat hareketleri
+            fig.add_trace(go.Scatter(
+                x=df.index,
+                y=df['close'],
+                mode='lines',
+                name='Fiyat',
+                line=dict(color='blue', width=1)
+            ))
+            
+            # Pozitif anomaliler
+            fig.add_trace(go.Scatter(
+                x=positive_anomalies.index,
+                y=positive_anomalies['close'],
+                mode='markers',
+                name='Pozitif Anomaliler',
+                marker=dict(color='green', size=10, symbol='triangle-up')
+            ))
+            
+            # Negatif anomaliler
+            fig.add_trace(go.Scatter(
+                x=negative_anomalies.index,
+                y=negative_anomalies['close'],
+                mode='markers',
+                name='Negatif Anomaliler',
+                marker=dict(color='red', size=10, symbol='triangle-down')
+            ))
+            
+            fig.update_layout(
+                title='Anomali Tespiti Grafiği',
+                xaxis_title='Tarih',
+                yaxis_title='Fiyat',
+                showlegend=True
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
             
         # SONUÇ VE ÖNERİLER
         st.subheader("💡 Sonuç ve Öneriler")
