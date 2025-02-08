@@ -157,7 +157,7 @@ def predict_next_day_values(df):
         df = df.dropna()
         
         # Feature'ları ve hedef değişkeni ayarla
-        features = ['close', 'Volume', 'MA5', 'MA20', 'RSI']  # Volume büyük harfle
+        features = ['close', 'volume', 'MA5', 'MA20', 'RSI']  # Volume büyük harfle
         X = df[features].values
         y_close = df['close'].values
         
@@ -198,8 +198,8 @@ def generate_alternative_scenarios(df, predictions):
     """Alternatif senaryolar oluşturur"""
     try:
         # Hacim durumu analizi
-        avg_volume = df['Volume'].mean()
-        current_volume = df['Volume'].iloc[-1]
+        avg_volume = df['volume'].mean()
+        current_volume = df['volume'].iloc[-1]
         volume_change = ((current_volume - avg_volume) / avg_volume) * 100
         
         volume_status = "Düşük Hacim" if volume_change < -25 else "Yüksek Hacim" if volume_change > 25 else "Normal Hacim"
@@ -250,8 +250,8 @@ def analyze_volume_scenarios(df, predictions):
     """Hacim senaryolarını analiz eder"""
     try:
         # Hacim durumu analizi
-        avg_volume = df['Volume'].mean()
-        current_volume = df['Volume'].iloc[-1]
+        avg_volume = df['volume'].mean()
+        current_volume = df['volume'].iloc[-1]
         volume_change = ((current_volume - avg_volume) / avg_volume) * 100
         
         # Hacim durumu belirleme
@@ -314,8 +314,8 @@ def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
         bb_status = "NORMAL ✅"
     
     # Hacim analizi
-    volume_avg = df['Volume'].mean()
-    current_volume = df['Volume'].iloc[-1]
+    volume_avg = df['volume'].mean()
+    current_volume = df['volume'].iloc[-1]
     volume_status = "YÜKSEK 💪" if current_volume > volume_avg * 1.5 else \
                    "DÜŞÜK 👎" if current_volume < volume_avg * 0.5 else \
                    "NORMAL 👍"
@@ -366,9 +366,9 @@ def analyze_correlation_matrix(corr_matrix):
     
     # Önemli korelasyonları analiz et
     pairs = [
-        ('close', 'Volume'),
+        ('close', 'volume'),
         ('close', 'RSI'),
-        ('Volume', 'Daily_Return'),
+        ('volume', 'Daily_Return'),
         ('RSI', 'Daily_Return')
     ]
     
@@ -391,7 +391,7 @@ def analyze_correlation_matrix(corr_matrix):
     return correlations
 
 def interpret_correlation(var1, var2, corr):
-    if var1 == 'close' and var2 == 'Volume':
+    if var1 == 'close' and var2 == 'volume':
         if corr > 0.3:
             return "Yüksek hacim fiyat artışını destekliyor"
         elif corr < -0.3:
@@ -405,7 +405,7 @@ def interpret_correlation(var1, var2, corr):
         else:
             return "Trend zayıf veya yatay hareket mevcut"
     
-    elif var1 == 'Volume' and var2 == 'Daily_Return':
+    elif var1 == 'volume' and var2 == 'Daily_Return':
         if abs(corr) > 0.3:
             return "Hacim, günlük getirilerle ilişkili"
         else:
@@ -445,7 +445,7 @@ def create_candlestick_chart(df):
 def create_volume_chart(df):
     volume_chart = go.Bar(
         x=df.index,
-        y=df['Volume'],
+        y=df['volume'],
         name='Hacim'
     )
     
@@ -549,45 +549,59 @@ with st.sidebar:
                     df['time'] = pd.to_datetime(df['time'], unit='s')
                     df.set_index('time', inplace=True)
                     
-                    # Sütun isimlerini düzelt
+                    # Sütun isimlerini düzelt - hepsi küçük harf
                     df.columns = ['open', 'high', 'low', 'close', 'volume']
+                    
+                    # Günlük getiriyi hesapla
+                    df['Daily_Return'] = df['close'].pct_change()
                     
                     # Temel hesaplamalar
                     df = calculate_technical_indicators(df)
                     
-                    # Risk metrikleri ve tahminler her rapor türü için hesaplanır
-                    risk_metrics = calculate_risk_metrics(df)
-                    predictions = predict_next_day_values(df)
-                    
-                    if analiz_turu == "Kapsamlı Rapor Hazırla":
-                        # Tüm analizleri yap
-                        stats_results = perform_statistical_analysis(df)
-                        pattern_results = analyze_statistical_patterns(df)
-                        scenarios = generate_alternative_scenarios(df, predictions)
-                        volume_analysis = analyze_volume_scenarios(df, predictions)
-                        summary = generate_analysis_summary(df, predictions, risk_metrics, stats_results)
+                    try:
+                        # Risk metrikleri ve tahminler her rapor türü için hesaplanır
+                        risk_metrics = calculate_risk_metrics(df)
+                        predictions = predict_next_day_values(df)
                         
-                        # Kapsamlı rapor oluştur
-                        create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, 
-                                                 predictions, pattern_results, scenarios, volume_analysis)
+                        if analiz_turu == "Kapsamlı Rapor Hazırla":
+                            try:
+                                # Tüm analizleri yap
+                                stats_results = perform_statistical_analysis(df)
+                                pattern_results = analyze_statistical_patterns(df)
+                                scenarios = generate_alternative_scenarios(df, predictions)
+                                volume_analysis = analyze_volume_scenarios(df)
+                                summary = generate_analysis_summary(df, predictions, risk_metrics, stats_results)
+                                
+                                # Kapsamlı rapor oluştur
+                                create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, 
+                                                         predictions, pattern_results, scenarios, volume_analysis)
+                                
+                            except Exception as e:
+                                st.sidebar.error(f"Kapsamlı rapor oluşturulurken bir hata oluştu: {str(e)}")
+                            
+                        elif analiz_turu == "Teknik Analiz Yap":
+                            try:
+                                # Sadece teknik analiz yap
+                                technical_summary = generate_technical_analysis(df)
+                                create_technical_report(hisse_adi, df, technical_summary, risk_metrics, predictions)
+                            except Exception as e:
+                                st.sidebar.error(f"Teknik analiz oluşturulurken bir hata oluştu: {str(e)}")
+                            
+                        else:  # Veri ve İstatistiksel Analiz
+                            try:
+                                # İstatistiksel analiz ve örüntü analizi
+                                stats_results = perform_statistical_analysis(df)
+                                pattern_results = analyze_statistical_patterns(df)
+                                seasonality_analysis = perform_seasonality_analysis(df)
+                                create_statistical_report(hisse_adi, df, stats_results, pattern_results, 
+                                                       seasonality_analysis, risk_metrics, predictions)
+                            except Exception as e:
+                                st.sidebar.error(f"İstatistiksel analiz oluşturulurken bir hata oluştu: {str(e)}")
                         
-                    elif analiz_turu == "Teknik Analiz Yap":
-                        # Sadece teknik analiz yap
-                        technical_summary = generate_technical_analysis(df)
-                        create_technical_report(hisse_adi, df, technical_summary, risk_metrics, predictions)
+                        st.sidebar.success("✅ Rapor başarıyla oluşturuldu!")
                         
-                    else:  # Veri ve İstatistiksel Analiz
-                        # İstatistiksel analiz ve örüntü analizi
-                        stats_results = perform_statistical_analysis(df)
-                        pattern_results = analyze_statistical_patterns(df)
-                        seasonality_analysis = perform_seasonality_analysis(df)
-                        create_statistical_report(hisse_adi, df, stats_results, pattern_results, 
-                                               seasonality_analysis, risk_metrics, predictions)
-                    
-                    st.success("✅ Rapor başarıyla oluşturuldu!")
-                    
-                except Exception as e:
-                    st.error(f"Bir hata oluştu: {str(e)}")
+                    except Exception as e:
+                        st.sidebar.error(f"Bir hata oluştu: {str(e)}")
 
 def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis):
     # Kapsamlı rapor oluştur
