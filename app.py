@@ -688,6 +688,85 @@ def perform_seasonality_analysis(df):
     seasonality = seasonal_result.seasonal[-1]
     return seasonality
 
+def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions):
+    """PDF raporu oluşturur"""
+    try:
+        # PDF dosya adını oluştur
+        pdf_filename = f"{hisse_adi}_analiz_raporu.pdf"
+        
+        # PDF belgesini oluştur
+        doc = SimpleDocTemplate(pdf_filename, pagesize=letter)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Başlık ekle
+        title = Paragraph(f"{hisse_adi} Hisse Senedi Analiz Raporu", styles['Heading1'])
+        story.append(title)
+        story.append(Spacer(1, 12))
+        
+        # Özet bilgileri ekle
+        story.append(Paragraph("Özet Analiz", styles['Heading2']))
+        story.append(Paragraph(str(summary), styles['Normal']))
+        story.append(Spacer(1, 12))
+        
+        # Risk metrikleri ekle
+        story.append(Paragraph("Risk Metrikleri", styles['Heading2']))
+        risk_data = [[k, f"{v:.2f}" if isinstance(v, float) else str(v)] 
+                    for k, v in risk_metrics.items()]
+        risk_table = Table(risk_data)
+        risk_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(risk_table)
+        story.append(Spacer(1, 12))
+        
+        # İstatistiksel analiz sonuçları
+        story.append(Paragraph("İstatistiksel Analiz", styles['Heading2']))
+        stats_data = [[k, f"{v:.2f}" if isinstance(v, float) else str(v)] 
+                     for k, v in stats_results.items()]
+        stats_table = Table(stats_data)
+        stats_table.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ]))
+        story.append(stats_table)
+        story.append(Spacer(1, 12))
+        
+        # Tahminler
+        story.append(Paragraph("Gelecek Tahminleri", styles['Heading2']))
+        pred_data = [[k, f"{v:.2f}" if isinstance(v, float) else str(v)] 
+                    for k, v in predictions.items()]
+        pred_table = Table(pred_data)
+        pred_table.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ]))
+        story.append(pred_table)
+        
+        # PDF oluştur
+        doc.build(story)
+        
+        # Kullanıcıya indirme linki göster
+        with open(pdf_filename, "rb") as pdf_file:
+            st.download_button(
+                label="📥 PDF Raporunu İndir",
+                data=pdf_file,
+                file_name=pdf_filename,
+                mime="application/pdf"
+            )
+            
+    except Exception as e:
+        st.error(f"PDF raporu oluşturulurken bir hata oluştu: {str(e)}")
+
 # Streamlit sayfa yapılandırması
 st.set_page_config(
     page_title="Hisse Senedi Analizi",
@@ -695,14 +774,11 @@ st.set_page_config(
     layout="wide"
 )
 
-# Başlık ve açıklama
-st.title("📊 Hisse Senedi Analiz Platformu")
-st.markdown("""
-Bu uygulama ile hisse senetleri için detaylı teknik ve istatistiksel analizler yapabilirsiniz.
-""")
+# Yan menü
+col1, col2 = st.columns([1, 4])  # Sol menü için 1 birim, ana içerik için 4 birim genişlik
 
 # Yan menü
-with st.sidebar:
+with col1:
     st.header("📈 Analiz Parametreleri")
     
     # Hisse senedi seçimi
@@ -722,9 +798,9 @@ with st.sidebar:
         )
         
         # Rapor hazırlama butonu
-        if st.button("🚀 Raporu Hazırla"):
+        if st.button("🚀 Raporu Hazırla", key="main_button"):
             if not uploaded_file.name.startswith(hisse_adi):
-                st.sidebar.error(f"Lütfen {hisse_adi} ile başlayan bir CSV dosyası yükleyin!")
+                st.error(f"Lütfen {hisse_adi} ile başlayan bir CSV dosyası yükleyin!")
             else:
                 try:
                     # CSV dosyasını oku
@@ -760,7 +836,7 @@ with st.sidebar:
                                 # Kapsamlı rapor oluştur
                                 create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis)
                             except Exception as e:
-                                st.sidebar.error(f"Kapsamlı rapor oluşturulurken bir hata oluştu: {str(e)}")
+                                st.error(f"Kapsamlı rapor oluşturulurken bir hata oluştu: {str(e)}")
                             
                         elif analiz_turu == "Teknik Analiz Yap":
                             try:
@@ -768,7 +844,7 @@ with st.sidebar:
                                 technical_summary = generate_technical_analysis(df)
                                 create_technical_report(hisse_adi, df, technical_summary, risk_metrics, predictions)
                             except Exception as e:
-                                st.sidebar.error(f"Teknik analiz oluşturulurken bir hata oluştu: {str(e)}")
+                                st.error(f"Teknik analiz oluşturulurken bir hata oluştu: {str(e)}")
                             
                         else:  # Veri ve İstatistiksel Analiz
                             try:
@@ -779,11 +855,19 @@ with st.sidebar:
                                 create_statistical_report(hisse_adi, df, stats_results, pattern_results, 
                                                        seasonality_analysis, risk_metrics, predictions)
                             except Exception as e:
-                                st.sidebar.error(f"İstatistiksel analiz oluşturulurken bir hata oluştu: {str(e)}")
+                                st.error(f"İstatistiksel analiz oluşturulurken bir hata oluştu: {str(e)}")
                         
-                        st.sidebar.success("✅ Rapor başarıyla oluşturuldu!")
+                        st.success("✅ Rapor başarıyla oluşturuldu!")
                         
                     except Exception as e:
-                        st.sidebar.error(f"Bir hata oluştu: {str(e)}")
+                        st.error(f"Bir hata oluştu: {str(e)}")
                 except Exception as e:
-                    st.sidebar.error(f"CSV dosyası okunurken bir hata oluştu: {str(e)}")
+                    st.error(f"CSV dosyası okunurken bir hata oluştu: {str(e)}")
+
+# Ana içerik
+with col2:
+    # Başlık ve açıklama
+    st.title("📊 Hisse Senedi Analiz Platformu")
+    st.markdown("""
+    Bu uygulama ile hisse senetleri için detaylı teknik ve istatistiksel analizler yapabilirsiniz.
+    """)
