@@ -503,8 +503,8 @@ def calculate_fibonacci_levels(high, low):
     }
     return levels
 
-def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis):
-    with col2:  # Ana içerik sütununda göster
+def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis, content_col):
+    with content_col:  # Ana içerik sütununda göster
         st.header("Kapsamlı Analiz Raporu")
         
         # 1. ÖZET BİLGİLER
@@ -572,8 +572,8 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
         st.header("5. PDF Raporu")
         create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
 
-def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, predictions):
-    with col2:  # Ana içerik sütununda göster
+def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, predictions, content_col):
+    with content_col:  # Ana içerik sütununda göster
         st.header("Teknik Analiz Raporu")
         
         # 1. FİYAT GRAFİĞİ
@@ -631,8 +631,8 @@ def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, pred
         with pred_cols[1]:
             st.metric("Beklenen Değişim", f"%{predictions['Değişim']:.2f}")
 
-def create_statistical_report(hisse_adi, df, stats_results, pattern_results, seasonality_analysis, risk_metrics, predictions):
-    with col2:  # Ana içerik sütununda göster
+def create_statistical_report(hisse_adi, df, stats_results, pattern_results, seasonality_analysis, risk_metrics, predictions, content_col):
+    with content_col:  # Ana içerik sütununda göster
         st.header("İstatistiksel Analiz Raporu")
         
         # 1. TEMEL İSTATİSTİKLER
@@ -777,10 +777,10 @@ st.set_page_config(
 )
 
 # Yan menü
-col1, col2 = st.columns([1, 4])  # Sol menü için 1 birim, ana içerik için 4 birim genişlik
+menu_col, content_col = st.columns([1, 4])  # Sol menü için 1 birim, ana içerik için 4 birim genişlik
 
 # Yan menü
-with col1:
+with menu_col:
     st.header("📈 Analiz Parametreleri")
     
     # Hisse senedi seçimi
@@ -800,7 +800,7 @@ with col1:
         )
 
 # Ana içerik
-with col2:
+with content_col:
     # Başlık ve açıklama
     st.title("📊 Hisse Senedi Analiz Platformu")
     st.markdown("""
@@ -845,7 +845,7 @@ with col2:
                                 summary = generate_analysis_summary(df, predictions, risk_metrics, stats_results)
                                 
                                 # Kapsamlı rapor oluştur
-                                create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis)
+                                create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis, content_col)
                             except Exception as e:
                                 st.error(f"Kapsamlı rapor oluşturulurken bir hata oluştu: {str(e)}")
                             
@@ -853,7 +853,7 @@ with col2:
                             try:
                                 # Sadece teknik analiz yap
                                 technical_summary = generate_technical_analysis(df)
-                                create_technical_report(hisse_adi, df, technical_summary, risk_metrics, predictions)
+                                create_technical_report(hisse_adi, df, technical_summary, risk_metrics, predictions, content_col)
                             except Exception as e:
                                 st.error(f"Teknik analiz oluşturulurken bir hata oluştu: {str(e)}")
                             
@@ -864,7 +864,7 @@ with col2:
                                 pattern_results = analyze_statistical_patterns(df)
                                 seasonality_analysis = perform_seasonality_analysis(df)
                                 create_statistical_report(hisse_adi, df, stats_results, pattern_results, 
-                                                       seasonality_analysis, risk_metrics, predictions)
+                                                       seasonality_analysis, risk_metrics, predictions, content_col)
                             except Exception as e:
                                 st.error(f"İstatistiksel analiz oluşturulurken bir hata oluştu: {str(e)}")
                         
