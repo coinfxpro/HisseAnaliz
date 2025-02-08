@@ -539,7 +539,7 @@ with st.sidebar:
         # Rapor hazırlama butonu
         if st.button("🚀 Raporu Hazırla"):
             if not uploaded_file.name.startswith(hisse_adi):
-                st.error(f"Lütfen {hisse_adi} ile başlayan bir CSV dosyası yükleyin!")
+                st.sidebar.error(f"Lütfen {hisse_adi} ile başlayan bir CSV dosyası yükleyin!")
             else:
                 try:
                     # CSV dosyasını oku
@@ -575,7 +575,6 @@ with st.sidebar:
                                 # Kapsamlı rapor oluştur
                                 create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, 
                                                          predictions, pattern_results, scenarios, volume_analysis)
-                                
                             except Exception as e:
                                 st.sidebar.error(f"Kapsamlı rapor oluşturulurken bir hata oluştu: {str(e)}")
                             
@@ -602,6 +601,8 @@ with st.sidebar:
                         
                     except Exception as e:
                         st.sidebar.error(f"Bir hata oluştu: {str(e)}")
+                except Exception as e:
+                    st.sidebar.error(f"CSV dosyası okunurken bir hata oluştu: {str(e)}")
 
 def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis):
     # Kapsamlı rapor oluştur
