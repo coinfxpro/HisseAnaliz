@@ -586,7 +586,7 @@ def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, pred
         
         col1, col2 = st.columns(2)
         with col1:
-            # RSI
+            # RSI grafiği
             rsi_fig = create_technical_charts(df)[0]
             st.plotly_chart(rsi_fig, use_container_width=True)
             
@@ -594,7 +594,7 @@ def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, pred
             st.metric("RSI", f"{current_rsi:.2f}")
             
         with col2:
-            # MACD
+            # MACD grafiği
             macd_fig = create_technical_charts(df)[1]
             st.plotly_chart(macd_fig, use_container_width=True)
             
@@ -631,52 +631,134 @@ def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, pred
         with pred_cols[1]:
             st.metric("Beklenen Değişim", f"%{predictions['Değişim']:.2f}")
 
-def create_statistical_report(hisse_adi, df, stats_results, pattern_results, seasonality_analysis, risk_metrics, predictions, content_col):
-    with content_col:  # Ana içerik sütununda göster
-        st.header("İstatistiksel Analiz Raporu")
+def create_statistical_report(hisse_adi, df, stats_results, predictions, content_col):
+    with content_col:
+        st.header("📊 İstatistiksel Analiz Raporu")
         
-        # 1. TEMEL İSTATİSTİKLER
-        st.subheader("1. Temel İstatistikler")
-        basic_stats = df[['close', 'volume', 'Daily_Return']].describe()
-        st.dataframe(basic_stats, use_container_width=True)
+        # 1. TEMEL İSTATİSTİKLER VE GETİRİ ANALİZİ
+        st.subheader("1. 📈 Temel İstatistikler ve Getiri Analizi")
         
-        # 2. İSTATİSTİKSEL TESTLER
-        st.subheader("2. İstatistiksel Testler")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Durağanlık Testi (ADF)", f"p-değeri: {stats_results['ADF p-değeri']:.4f}")
-            st.metric("Normallik Testi", f"p-değeri: {stats_results['Normallik p-değeri']:.4f}")
-        with col2:
-            st.metric("Otokorelasyon", f"{stats_results['Otokorelasyon']:.4f}")
-            st.metric("Çarpıklık", f"{stats_results['Çarpıklık']:.4f}")
+        # Temel istatistikler tablosu
+        stats_df = df[['close', 'volume', 'Daily_Return']].describe()
+        stats_df.index = ['Gözlem Sayısı', 'Ortalama', 'Standart Sapma', 'Minimum', '25%', 'Medyan', '75%', 'Maksimum']
+        st.dataframe(stats_df.style.format("{:.2f}"), use_container_width=True)
         
-        # 3. ÖRÜNTÜ ANALİZİ
-        st.subheader("3. Örüntü Analizi")
-        if pattern_results['Mevsimsellik']:
-            st.info("ℹ Mevsimsel örüntü tespit edildi")
-        if pattern_results['Otokorelasyon']:
-            st.info("ℹ Fiyat hareketlerinde süreklilik tespit edildi")
-        if pattern_results['Trend Gücü'] > 1:
-            st.warning(f"⚠️ Güçlü trend (z-skor: {pattern_results['Trend Gücü']:.2f})")
+        # Getiri ve volatilite analizi
+        mean_return = df['Daily_Return'].mean() * 100
+        volatility = df['Daily_Return'].std() * 100
+        skewness = df['Daily_Return'].skew()
+        kurtosis = df['Daily_Return'].kurtosis()
         
-        # 4. RİSK ANALİZİ
-        st.subheader("4. Risk Analizi")
+        st.info(f"""
+        **📊 Getiri ve Volatilite Analizi:**
+        - Ortalama Günlük Getiri: %{mean_return:.2f}
+        - Günlük Volatilite: %{volatility:.2f}
+        - Getiri Dağılımı: {'Sağa Çarpık (Büyük Kazanç Potansiyeli)' if skewness > 0 else 'Sola Çarpık (Büyük Kayıp Riski)'} (Çarpıklık: {skewness:.2f})
+        - Basıklık: {kurtosis:.2f} ({'Yüksek Uç Değer Riski' if kurtosis > 3 else 'Normal Dağılım'})
+        
+        **💡 Yorum:**
+        - {'✅ Pozitif ortalama getiri' if mean_return > 0 else '⚠️ Negatif ortalama getiri'}
+        - {'⚠️ Yüksek volatilite - Dikkatli olunmalı' if volatility > 2 else '✅ Normal volatilite seviyesi' if volatility > 1 else '✅ Düşük volatilite - İstikrarlı seyir'}
+        - {'🎯 Büyük kazanç fırsatları mevcut' if skewness > 0 else '⚠️ Büyük kayıp riski mevcut'} 
+        """)
+        
+        # 2. RİSK ANALİZİ
+        st.subheader("2. ⚠️ Detaylı Risk Analizi")
+        
+        # Risk metrikleri hesaplama
+        risk_free_rate = 0.05  # Risksiz faiz oranı
+        excess_returns = df['Daily_Return'] - risk_free_rate/252
+        sharpe = np.sqrt(252) * excess_returns.mean() / excess_returns.std()
+        
+        # VaR hesaplama
+        var_95 = np.percentile(df['Daily_Return'], 5) * 100
+        var_99 = np.percentile(df['Daily_Return'], 1) * 100
+        
+        # Maximum Drawdown hesaplama
+        cumulative_returns = (1 + df['Daily_Return']).cumprod()
+        rolling_max = cumulative_returns.expanding().max()
+        drawdowns = (cumulative_returns - rolling_max) / rolling_max
+        max_drawdown = drawdowns.min() * 100
+        
         risk_cols = st.columns(3)
         with risk_cols[0]:
-            st.metric("Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}")
+            st.metric("Sharpe Oranı", f"{sharpe:.2f}")
         with risk_cols[1]:
-            st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.2f}")
+            st.metric("VaR (%95)", f"%{abs(var_95):.2f}")
         with risk_cols[2]:
-            st.metric("Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}")
+            st.metric("Maximum Drawdown", f"%{abs(max_drawdown):.2f}")
         
-        # 5. TAHMİNLER
-        st.subheader("5. Gelecek Tahmini")
-        pred_cols = st.columns(2)
-        with pred_cols[0]:
-            st.metric("Yarınki Tahmin", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}")
-        with pred_cols[1]:
-            st.metric("Beklenen Değişim", f"%{predictions['Değişim']:.2f}")
-
+        st.info(f"""
+        **📊 Risk Değerlendirmesi:**
+        - Risk/Getiri Oranı: {'Çok İyi' if sharpe > 1 else 'İyi' if sharpe > 0 else 'Kötü'} (Sharpe: {sharpe:.2f})
+        - %95 Güven Düzeyinde VaR: %{abs(var_95):.2f}
+        - %99 Güven Düzeyinde VaR: %{abs(var_99):.2f}
+        - En Büyük Düşüş: %{abs(max_drawdown):.2f}
+        
+        **💡 Risk Yönetimi Önerileri:**
+        1. {'⚠️ Stop-loss kullanımı ZORUNLU' if abs(max_drawdown) > 10 else '✅ Normal stop-loss yeterli'}
+        2. {'⚠️ Pozisyon büyüklüğü sınırlandırılmalı' if abs(var_95) > 3 else '✅ Normal pozisyon büyüklüğü'}
+        3. {'🎯 Kademeli alım stratejisi önerilir' if sharpe < 0.5 else '✅ Normal alım stratejisi'}
+        """)
+        
+        # 3. ÖRÜNTÜ VE ANOMALİ ANALİZİ
+        st.subheader("3. 🔍 Örüntü ve Anomali Analizi")
+        
+        # Mevsimsellik analizi
+        try:
+            decomposition = seasonal_decompose(df['close'], period=30)
+            seasonal_strength = np.std(decomposition.seasonal) / np.std(decomposition.resid)
+            has_seasonality = seasonal_strength > 0.1
+        except:
+            has_seasonality = False
+            
+        # Anomali tespiti
+        returns_mean = df['Daily_Return'].mean()
+        returns_std = df['Daily_Return'].std()
+        outliers = df[abs(df['Daily_Return'] - returns_mean) > 2 * returns_std]
+        
+        if has_seasonality:
+            st.info("""
+            🔄 **Mevsimsel Örüntü Tespit Edildi**
+            - Periyodik fiyat hareketleri mevcut
+            - Alım-satım zamanlaması için bu döngüler kullanılabilir
+            - Mevsimsel etkileri göz önünde bulundurun
+            """)
+            
+        if not outliers.empty:
+            st.warning(f"""
+            ⚠️ **Anomali Tespiti**
+            - {len(outliers)} adet anormal fiyat hareketi tespit edildi
+            - En büyük anomali: %{outliers['Daily_Return'].abs().max()*100:.2f}
+            - Bu tarihler özel olarak incelenmeli
+            """)
+            
+        # 4. SONUÇ VE ÖNERİLER
+        st.subheader("4. 💡 Sonuç ve Öneriler")
+        
+        # Son 20 günlük trend analizi
+        last_20_change = ((df['close'].iloc[-1] - df['close'].iloc[-20]) / df['close'].iloc[-20]) * 100
+        rsi = df['RSI'].iloc[-1]
+        
+        st.success(f"""
+        **📈 Özet Bulgular:**
+        1. Getiri Profili: {'Pozitif' if mean_return > 0 else 'Negatif'} (%{mean_return:.2f})
+        2. Risk Seviyesi: {'Yüksek' if abs(var_95) > 3 else 'Orta' if abs(var_95) > 2 else 'Düşük'}
+        3. Yatırım Kalitesi: {'Yüksek' if sharpe > 1 else 'Orta' if sharpe > 0 else 'Düşük'}
+        
+        **🎯 Yatırım Stratejisi:**
+        1. {'💹 GÜÇLÜ AL' if mean_return > 0 and sharpe > 1 and rsi < 70 else
+            '✅ AL' if mean_return > 0 and sharpe > 0 and rsi < 70 else
+            '⛔ SAT' if mean_return < 0 and sharpe < 0 else '⚠️ TUT'}
+        2. Stop-Loss: ₺{df['close'].iloc[-1] * (1 + var_95/100):.2f}
+        3. Hedef Fiyat: ₺{predictions['Tahmin Edilen Kapanış']:.2f}
+        
+        **⚠️ Önemli Uyarılar:**
+        1. {f'⚠️ Yüksek risk! Sıkı risk yönetimi şart!' if abs(var_95) > 3 else '✅ Normal risk yönetimi yeterli'}
+        2. {f'⚠️ RSI aşırı {"alım" if rsi > 70 else "satım"} bölgesinde!' if rsi > 70 or rsi < 30 else '✅ Teknik göstergeler normal'}
+        3. {'⚠️ Anormal fiyat hareketlerine dikkat!' if not outliers.empty else '✅ Fiyat hareketleri normal'}
+        """)
+        
 def generate_technical_analysis(df):
     # Teknik analiz sonuçları
     technical_summary = {
@@ -863,8 +945,7 @@ with content_col:
                                 stats_results = perform_statistical_analysis(df)
                                 pattern_results = analyze_statistical_patterns(df)
                                 seasonality_analysis = perform_seasonality_analysis(df)
-                                create_statistical_report(hisse_adi, df, stats_results, pattern_results, 
-                                                       seasonality_analysis, risk_metrics, predictions, content_col)
+                                create_statistical_report(hisse_adi, df, stats_results, predictions, content_col)
                             except Exception as e:
                                 st.error(f"İstatistiksel analiz oluşturulurken bir hata oluştu: {str(e)}")
                         
