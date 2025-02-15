@@ -73,37 +73,38 @@ def calculate_rsi(prices, period=14):
     return rsi
 
 def calculate_risk_metrics(df):
-    # Günlük getiriyi yüzde olarak hesapla
-    returns = df['Daily_Return'].dropna()  # Zaten yüzde cinsinden
+    # Günlük getiriyi hesapla
+    returns = df['Daily_Return'].dropna()
+    
+    # Aykırı değerleri temizle
+    returns = returns[np.abs(returns) < returns.mean() + 3 * returns.std()]
     
     # Volatilite (yıllık)
     volatility = returns.std() * np.sqrt(252)
     
-    # Value at Risk (VaR) - Yüzde olarak
-    # Normal dağılım varsayımı altında VaR hesaplama
-    confidence_level_95 = 1.645  # 95% güven aralığı için z-score
-    confidence_level_99 = 2.326  # 99% güven aralığı için z-score
+    # Value at Risk (VaR)
+    var_95 = np.percentile(returns, 5)  # 5. yüzdelik = 95% VaR
+    var_99 = np.percentile(returns, 1)  # 1. yüzdelik = 99% VaR
     
-    var_95 = -(returns.mean() + confidence_level_95 * returns.std())
-    var_99 = -(returns.mean() + confidence_level_99 * returns.std())
-    
-    # Sharpe Ratio (Risk-free rate olarak %5 varsayıyoruz)
+    # Sharpe Ratio
     risk_free_rate = 0.05 / 252  # Günlük risk-free rate
-    excess_returns = returns/100 - risk_free_rate  
+    excess_returns = returns/100 - risk_free_rate
     sharpe_ratio = np.sqrt(252) * excess_returns.mean() / excess_returns.std()
     
-    # Maximum Drawdown hesaplama
-    prices = df['close']
-    peak = prices.expanding(min_periods=1).max()
-    drawdown = (prices - peak) / peak * 100
-    max_drawdown = drawdown.min()
+    # Maximum Drawdown
+    price_series = df['close'].copy()
+    rolling_max = price_series.expanding().max()
+    drawdowns = ((price_series - rolling_max) / rolling_max) * 100
+    max_drawdown = drawdowns.min()
     
-    # Ani yükseliş ve düşüş riskleri
+    # Ani yükseliş ve düşüş riskleri (aykırı değerler temizlenmiş)
     sudden_rise_risk = np.percentile(returns[returns > 0], 95)
     sudden_fall_risk = abs(np.percentile(returns[returns < 0], 5))
     
-    # Beta (Piyasa verisi olmadığı için varsayılan 1)
-    beta = 1.0
+    # Stop-loss ve Kar Al seviyeleri
+    current_price = df['close'].iloc[-1]
+    stop_loss = current_price * (1 + var_95/100)  # VaR'a göre stop-loss
+    take_profit = current_price * (1 - var_95/100 * 1.5)  # Stop-loss'un 1.5 katı kar hedefi
     
     return {
         'Volatilite (%)': round(volatility, 2),
@@ -113,8 +114,68 @@ def calculate_risk_metrics(df):
         'Max Drawdown (%)': round(abs(max_drawdown), 2),
         'Ani Yükseliş Riski (%)': round(sudden_rise_risk, 2),
         'Ani Düşüş Riski (%)': round(sudden_fall_risk, 2),
-        'Beta': round(beta, 2)
+        'Stop Loss': round(stop_loss, 2),
+        'Take Profit': round(take_profit, 2),
+        'Beta': 1.0
     }
+
+def detect_anomalies(df, window=20, std_dev=2):
+    """Anomalileri tespit eder ve analiz eder"""
+    returns = df['Daily_Return'].copy()
+    
+    # Rolling ortalama ve standart sapma
+    rolling_mean = returns.rolling(window=window).mean()
+    rolling_std = returns.rolling(window=window).std()
+    
+    # Anomali tespiti
+    upper_bound = rolling_mean + (std_dev * rolling_std)
+    lower_bound = rolling_mean - (std_dev * rolling_std)
+    
+    # Aykırı değerleri temizle (çok ekstrem değerleri)
+    returns = returns[np.abs(returns) < returns.mean() + 3 * returns.std()]
+    
+    # Anomalileri belirle
+    anomalies_high = returns[returns > upper_bound]
+    anomalies_low = returns[returns < lower_bound]
+    
+    # Son 30 gündeki anomaliler
+    last_30_days = returns[-30:]
+    recent_anomalies = len(last_30_days[
+        (last_30_days > upper_bound[-30:]) | 
+        (last_30_days < lower_bound[-30:])
+    ])
+    
+    # Önemli anomali tarihlerini bul (en yüksek 5 pozitif ve negatif)
+    top_anomalies = returns[returns > upper_bound].nlargest(5)
+    bottom_anomalies = returns[returns < lower_bound].nsmallest(5)
+    
+    # Anomali istatistikleri
+    stats = {
+        'positive_count': len(anomalies_high),
+        'negative_count': len(anomalies_low),
+        'positive_mean': anomalies_high.mean() if len(anomalies_high) > 0 else 0,
+        'negative_mean': anomalies_low.mean() if len(anomalies_low) > 0 else 0,
+        'recent_anomalies': recent_anomalies,
+        'important_dates': pd.concat([top_anomalies, bottom_anomalies]).sort_values(ascending=False)
+    }
+    
+    return stats
+
+def format_anomaly_report(stats):
+    """Anomali raporunu formatlar"""
+    report = []
+    
+    # Genel istatistikler
+    report.append(f"Pozitif Anomaliler: {stats['positive_count']} adet (Ortalama: %{stats['positive_mean']:.2f})")
+    report.append(f"Negatif Anomaliler: {stats['negative_count']} adet (Ortalama: %{stats['negative_mean']:.2f})")
+    report.append(f"Son 30 Günde: {stats['recent_anomalies']} adet")
+    
+    # Önemli tarihler
+    report.append("🔍 Önemli Anomali Tarihleri:")
+    for date, value in stats['important_dates'].head().items():
+        report.append(f"- {date.strftime('%d/%m/%Y')}: %{value:.2f}")
+    
+    return "\n".join(report)
 
 def perform_statistical_analysis(df):
     # Durağanlık testi (ADF)
