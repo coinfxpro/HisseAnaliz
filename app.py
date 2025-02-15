@@ -73,40 +73,44 @@ def calculate_rsi(prices, period=14):
     return rsi
 
 def calculate_risk_metrics(df):
-    returns = df['Daily_Return'].dropna() / 100  # Yüzdeyi ondalığa çevir
+    # Günlük getiriyi yüzde olarak hesapla
+    returns = df['Daily_Return'].dropna()  # Zaten yüzde cinsinden
     
     # Volatilite (yıllık)
-    volatility = returns.std() * np.sqrt(252) * 100  # Yüzde olarak ifade et
+    volatility = returns.std() * np.sqrt(252)
     
     # Value at Risk (VaR) - Yüzde olarak
-    var_95 = np.percentile(returns, 5) * 100
-    var_99 = np.percentile(returns, 1) * 100
+    # Normal dağılım varsayımı altında VaR hesaplama
+    confidence_level_95 = 1.645  # 95% güven aralığı için z-score
+    confidence_level_99 = 2.326  # 99% güven aralığı için z-score
+    
+    var_95 = -(returns.mean() + confidence_level_95 * returns.std())
+    var_99 = -(returns.mean() + confidence_level_99 * returns.std())
     
     # Sharpe Ratio (Risk-free rate olarak %5 varsayıyoruz)
-    risk_free_rate = 0.05
-    excess_returns = returns - risk_free_rate/252  # Günlük risk-free rate
+    risk_free_rate = 0.05 / 252  # Günlük risk-free rate
+    excess_returns = returns/100 - risk_free_rate  
     sharpe_ratio = np.sqrt(252) * excess_returns.mean() / excess_returns.std()
     
-    # Maximum Drawdown - Yüzde olarak
-    cum_returns = (1 + returns).cumprod()
-    rolling_max = cum_returns.expanding().max()
-    drawdowns = (cum_returns - rolling_max) / rolling_max * 100
-    max_drawdown = drawdowns.min()
+    # Maximum Drawdown hesaplama
+    prices = df['close']
+    peak = prices.expanding(min_periods=1).max()
+    drawdown = (prices - peak) / peak * 100
+    max_drawdown = drawdown.min()
     
     # Ani yükseliş ve düşüş riskleri
-    daily_returns_pct = returns * 100
-    sudden_rise_risk = np.percentile(daily_returns_pct[daily_returns_pct > 0], 95)  # 95. percentil pozitif getiri
-    sudden_fall_risk = np.abs(np.percentile(daily_returns_pct[daily_returns_pct < 0], 5))  # 5. percentil negatif getiri
+    sudden_rise_risk = np.percentile(returns[returns > 0], 95)
+    sudden_fall_risk = abs(np.percentile(returns[returns < 0], 5))
     
     # Beta (Piyasa verisi olmadığı için varsayılan 1)
     beta = 1.0
     
     return {
         'Volatilite (%)': round(volatility, 2),
-        'VaR_95 (%)': round(var_95, 2),
-        'VaR_99 (%)': round(var_99, 2),
+        'VaR_95 (%)': round(abs(var_95), 2),
+        'VaR_99 (%)': round(abs(var_99), 2),
         'Sharpe Oranı': round(sharpe_ratio, 2),
-        'Max Drawdown (%)': round(max_drawdown, 2),
+        'Max Drawdown (%)': round(abs(max_drawdown), 2),
         'Ani Yükseliş Riski (%)': round(sudden_rise_risk, 2),
         'Ani Düşüş Riski (%)': round(sudden_fall_risk, 2),
         'Beta': round(beta, 2)
