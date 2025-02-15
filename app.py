@@ -76,33 +76,40 @@ def calculate_risk_metrics(df):
     returns = df['Daily_Return'].dropna() / 100  # Yüzdeyi ondalığa çevir
     
     # Volatilite (yıllık)
-    volatility = returns.std() * np.sqrt(252)
+    volatility = returns.std() * np.sqrt(252) * 100  # Yüzde olarak ifade et
     
-    # Value at Risk (VaR)
-    var_95 = np.percentile(returns, 5)
-    var_99 = np.percentile(returns, 1)
+    # Value at Risk (VaR) - Yüzde olarak
+    var_95 = np.percentile(returns, 5) * 100
+    var_99 = np.percentile(returns, 1) * 100
     
     # Sharpe Ratio (Risk-free rate olarak %5 varsayıyoruz)
     risk_free_rate = 0.05
     excess_returns = returns - risk_free_rate/252  # Günlük risk-free rate
     sharpe_ratio = np.sqrt(252) * excess_returns.mean() / excess_returns.std()
     
-    # Maximum Drawdown
+    # Maximum Drawdown - Yüzde olarak
     cum_returns = (1 + returns).cumprod()
     rolling_max = cum_returns.expanding().max()
-    drawdowns = cum_returns/rolling_max - 1
+    drawdowns = (cum_returns - rolling_max) / rolling_max * 100
     max_drawdown = drawdowns.min()
+    
+    # Ani yükseliş ve düşüş riskleri
+    daily_returns_pct = returns * 100
+    sudden_rise_risk = np.percentile(daily_returns_pct[daily_returns_pct > 0], 95)  # 95. percentil pozitif getiri
+    sudden_fall_risk = np.abs(np.percentile(daily_returns_pct[daily_returns_pct < 0], 5))  # 5. percentil negatif getiri
     
     # Beta (Piyasa verisi olmadığı için varsayılan 1)
     beta = 1.0
     
     return {
-        'Volatilite': volatility,
-        'VaR_95': var_95,
-        'VaR_99': var_99,
-        'Sharpe Oranı': sharpe_ratio,
-        'Max Drawdown': max_drawdown,
-        'Beta': beta
+        'Volatilite (%)': round(volatility, 2),
+        'VaR_95 (%)': round(var_95, 2),
+        'VaR_99 (%)': round(var_99, 2),
+        'Sharpe Oranı': round(sharpe_ratio, 2),
+        'Max Drawdown (%)': round(max_drawdown, 2),
+        'Ani Yükseliş Riski (%)': round(sudden_rise_risk, 2),
+        'Ani Düşüş Riski (%)': round(sudden_fall_risk, 2),
+        'Beta': round(beta, 2)
     }
 
 def perform_statistical_analysis(df):
@@ -288,8 +295,8 @@ def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
                  "NÖTR ⚪"
     
     # Volatilite durumu
-    volatility_status = "YÜKSEK ⚠️" if risk_metrics['Volatilite'] > 0.3 else \
-                       "NORMAL ✅" if risk_metrics['Volatilite'] > 0.15 else \
+    volatility_status = "YÜKSEK ⚠️" if risk_metrics['Volatilite (%)'] > 0.3 else \
+                       "NORMAL ✅" if risk_metrics['Volatilite (%)'] > 0.15 else \
                        "DÜŞÜK 💤"
     
     # Durağanlık durumu
@@ -321,14 +328,14 @@ def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
                    "NORMAL 👍"
     
     # Risk durumu
-    risk_status = "YÜKSEK RİSK ⚠️" if risk_metrics['Volatilite'] > 0.3 or risk_metrics['VaR_95'] < -0.03 else \
-                 "ORTA RİSK ⚡" if risk_metrics['Volatilite'] > 0.2 or risk_metrics['VaR_95'] < -0.02 else \
+    risk_status = "YÜKSEK RİSK ⚠️" if risk_metrics['Volatilite (%)'] > 0.3 or risk_metrics['VaR_95 (%)'] < -0.03 else \
+                 "ORTA RİSK ⚡" if risk_metrics['Volatilite (%)'] > 0.2 or risk_metrics['VaR_95 (%)'] < -0.02 else \
                  "DÜŞÜK RİSK ✅"
     
     return {
         'Genel Trend': f"{current_trend} {'📈' if current_trend == 'YÜKSELİŞ' else '📉' if current_trend == 'DÜŞÜŞ' else '↔️'}",
         'RSI Durumu': f"{rsi_status} ({df['RSI'].iloc[-1]:.1f})",
-        'Volatilite': f"{volatility_status} ({risk_metrics['Volatilite']*100:.1f}%)",
+        'Volatilite': f"{volatility_status} ({risk_metrics['Volatilite (%)']:.1f}%)",
         'Durağanlık': stationarity,
         'MACD Sinyali': macd_signal,
         'Bollinger': bb_status,
@@ -503,7 +510,7 @@ def calculate_fibonacci_levels(high, low):
     }
     return levels
 
-def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis, content_col):
+def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, content_col):
     with content_col:  # Ana içerik sütununda göster
         st.header("Kapsamlı Analiz Raporu")
         
@@ -552,11 +559,11 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
         st.subheader("3.2 Risk Metrikleri")
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}")
+            st.metric("Volatilite", f"%{risk_metrics['Volatilite (%)']:.2f}")
         with col2:
             st.metric("Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}")
         with col3:
-            st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.2f}")
+            st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95 (%)']):.2f}")
 
         # 4. GELECEK TAHMİNLERİ
         st.header("4. GELECEK TAHMİNLERİ")
@@ -617,11 +624,11 @@ def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, pred
         st.subheader("4. Risk Metrikleri")
         risk_cols = st.columns(3)
         with risk_cols[0]:
-            st.metric("Volatilite", f"%{risk_metrics['Volatilite']*100:.2f}")
+            st.metric("Volatilite", f"%{risk_metrics['Volatilite (%)']:.2f}")
         with risk_cols[1]:
-            st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95']*100):.2f}")
+            st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95 (%)']):.2f}")
         with risk_cols[2]:
-            st.metric("Max Drawdown", f"%{risk_metrics['Max Drawdown']*100:.2f}")
+            st.metric("Max Drawdown", f"%{risk_metrics['Max Drawdown (%)']:.2f}")
         
         # 5. TAHMİNLER
         st.subheader("5. Yarınki Tahminler")
