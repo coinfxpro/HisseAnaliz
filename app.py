@@ -429,13 +429,17 @@ def predict_next_day(df, index_data=None):
         signal = df['Signal'].iloc[-1] if 'Signal' in df.columns else 0
         
         # Örüntü analizi
-        _, patterns = detect_patterns(df)
         pattern_signal = 0
-        for pattern, direction, _ in patterns:
-            if direction == "Yükseliş":
-                pattern_signal += 1
-            elif direction == "Düşüş":
-                pattern_signal -= 1
+        try:
+            pattern_text, patterns = detect_patterns(df)
+            for pattern, direction, _ in patterns:
+                if direction == "Yükseliş":
+                    pattern_signal += 1
+                elif direction == "Düşüş":
+                    pattern_signal -= 1
+        except:
+            pattern_signal = 0
+            pattern_text = "Örüntü analizi yapılamadı"
         
         # Tahmin faktörleri
         volume_factor = 0.3 if volume_ratio > 1.5 else -0.2 if volume_ratio < 0.5 else 0
@@ -1367,7 +1371,7 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         rsi = df['RSI'].iloc[-1]
         momentum = df['close'].diff(5).iloc[-1]
         macd = df['MACD'].iloc[-1]
-        signal = df['Signal_Line'].iloc[-1]
+        signal = df['Signal'].iloc[-1]
         
         # Temel tahmin - ARIMA tahminini baz alalım
         base_prediction = predictions['Tahmin Edilen Kapanış']
