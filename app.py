@@ -217,19 +217,20 @@ def perform_statistical_analysis(df):
         'Mevsimsellik': seasonality
     }
 
-def predict_next_day_values(df):
+def predict_next_day_values(df, index_data=None):
     """Gelecek gün tahminlerini hesaplar"""
     try:
         # Feature'ları hazırla
         df['MA5'] = df['close'].rolling(window=5).mean()
         df['MA20'] = df['close'].rolling(window=20).mean()
         df['RSI'] = calculate_rsi(df['close'])
+        df['Volume_Ratio'] = df['volume'] / df['volume'].rolling(window=20).mean()
         
         # NaN değerleri temizle
         df = df.dropna()
         
         # Feature'ları ve hedef değişkeni ayarla
-        features = ['close', 'volume', 'MA5', 'MA20', 'RSI']  # Volume büyük harfle
+        features = ['close', 'volume', 'MA5', 'MA20', 'RSI', 'Volume_Ratio']
         X = df[features].values
         y_close = df['close'].values
         
@@ -238,8 +239,8 @@ def predict_next_day_values(df):
         X_scaled = scaler.fit_transform(X)
         
         # Train-test split
-        X_train = X_scaled[:-1]  # Son günü test için ayır
-        X_test = X_scaled[-1:]   # Son gün
+        X_train = X_scaled[:-1]
+        X_test = X_scaled[-1:]
         y_train = y_close[:-1]
         
         # Model eğitimi
@@ -249,21 +250,45 @@ def predict_next_day_values(df):
         # Tahmin
         next_day_pred = model.predict(X_test)[0]
         
-        # Tahmin sonuçlarını hazırla
+        # Hacim senaryosuna göre tahmin ayarlaması
+        volume_multiplier = 1.0
+        if df['volume'].iloc[-1] > df['volume'].rolling(window=20).mean().iloc[-1] * 2:
+            volume_multiplier = 1.2
+        elif df['volume'].iloc[-1] < df['volume'].rolling(window=20).mean().iloc[-1] * 0.5:
+            volume_multiplier = 0.8
+
+        # Endeks korelasyonuna göre tahmin ayarlaması
+        correlation_multiplier = 1.0
+        if index_data is not None:
+            index_returns = index_data['Daily_Return']
+            correlation = df['Daily_Return'].corr(index_returns)
+            if abs(correlation) > 0.4:
+                if correlation > 0:
+                    correlation_multiplier = 1.1
+                else:
+                    correlation_multiplier = 0.9
+
+        # Nihai tahmin
+        adjusted_prediction = next_day_pred * volume_multiplier * correlation_multiplier
+        
         predictions = {
-            'Tahmin Edilen Kapanış': next_day_pred,
+            'Tahmin Edilen Kapanış': adjusted_prediction,
             'Son Kapanış': df['close'].iloc[-1],
-            'Değişim': (next_day_pred - df['close'].iloc[-1]) / df['close'].iloc[-1] * 100
+            'Değişim': (adjusted_prediction - df['close'].iloc[-1]) / df['close'].iloc[-1] * 100,
+            'Hacim Senaryosu': 'Yüksek Hacim' if df['volume'].iloc[-1] > df['volume'].rolling(window=20).mean().iloc[-1] * 2 else 'Normal Hacim' if df['volume'].iloc[-1] > df['volume'].rolling(window=20).mean().iloc[-1] * 0.5 else 'Düşük Hacim',
+            'Endeks Korelasyonu': correlation if index_data is not None else None
         }
         
         return predictions
+
     except Exception as e:
         st.error(f"Tahmin hesaplanırken bir hata oluştu: {str(e)}")
-        # Hata durumunda varsayılan tahminler
         return {
-            'Tahmin Edilen Kapanış': df['close'].iloc[-1] * 1.001,  # Çok küçük bir artış
+            'Tahmin Edilen Kapanış': df['close'].iloc[-1] * 1.001,
             'Son Kapanış': df['close'].iloc[-1],
-            'Değişim': 0.1
+            'Değişim': 0.1,
+            'Hacim Senaryosu': None,
+            'Endeks Korelasyonu': None
         }
 
 def generate_alternative_scenarios(df, predictions):
@@ -300,7 +325,6 @@ def generate_alternative_scenarios(df, predictions):
         }
     except Exception as e:
         st.error(f"Senaryo hesaplanırken bir hata oluştu: {str(e)}")
-        # Hata durumunda varsayılan senaryolar
         return {
             'Yüksek_Hacim': {
                 'Tahmin Edilen Kapanış': predictions['Son Kapanış'] * 1.02,
@@ -318,32 +342,85 @@ def generate_alternative_scenarios(df, predictions):
             }
         }
 
-def analyze_volume_scenarios(df, predictions):
-    """Hacim senaryolarını analiz eder"""
-    try:
-        # Hacim durumu analizi
-        avg_volume = df['volume'].mean()
-        current_volume = df['volume'].iloc[-1]
-        volume_change = ((current_volume - avg_volume) / avg_volume) * 100
-        
-        # Hacim durumu belirleme
-        if volume_change < -25:
-            volume_status = "Düşük Hacim"
-        elif volume_change > 25:
-            volume_status = "Yüksek Hacim"
-        else:
-            volume_status = "Normal Hacim"
-        
-        return {
-            'Durum': volume_status,
-            'Değişim': volume_change
+def analyze_volume_scenarios(df):
+    """Hacim senaryolarına göre analiz yapar"""
+    # Son 30 günlük ortalama hacim
+    avg_volume = df['volume'].tail(30).mean()
+    current_volume = df['volume'].iloc[-1]
+    volume_ratio = current_volume / avg_volume
+
+    # Hacim senaryoları
+    scenarios = {
+        'Yüksek Hacim': {
+            'condition': volume_ratio > 2,
+            'description': 'Hacim ortalamanın 2 katından fazla',
+            'impact': 'Güçlü fiyat hareketi beklentisi'
+        },
+        'Normal Hacim': {
+            'condition': 0.5 <= volume_ratio <= 2,
+            'description': 'Hacim normal seviyelerde',
+            'impact': 'Normal fiyat hareketi beklentisi'
+        },
+        'Düşük Hacim': {
+            'condition': volume_ratio < 0.5,
+            'description': 'Hacim ortalamanın yarısından az',
+            'impact': 'Zayıf fiyat hareketi beklentisi'
         }
-    except Exception as e:
-        st.error(f"Hacim analizi hesaplanırken bir hata oluştu: {str(e)}")
-        return {
-            'Durum': "Normal Hacim",
-            'Değişim': 0.0
+    }
+
+    # Aktif senaryo tespiti
+    active_scenario = next((name for name, scenario in scenarios.items() 
+                          if scenario['condition']), 'Normal Hacim')
+
+    return {
+        'current_volume': current_volume,
+        'average_volume': avg_volume,
+        'volume_ratio': volume_ratio,
+        'active_scenario': active_scenario,
+        'scenario_details': scenarios[active_scenario]
+    }
+
+def analyze_index_correlation(df, index_data):
+    """Endeks ile korelasyon analizi yapar"""
+    # Günlük getiriler
+    stock_returns = df['Daily_Return']
+    index_returns = index_data['Daily_Return']
+
+    # Korelasyon hesaplama
+    correlation = stock_returns.corr(index_returns)
+
+    # Son 30 günlük korelasyon
+    recent_correlation = stock_returns.tail(30).corr(index_returns.tail(30))
+
+    # Korelasyon yorumu
+    if abs(correlation) > 0.7:
+        strength = "Güçlü"
+    elif abs(correlation) > 0.4:
+        strength = "Orta"
+    else:
+        strength = "Zayıf"
+
+    direction = "Pozitif" if correlation > 0 else "Negatif"
+
+    # Endeks hareket senaryoları
+    scenarios = {
+        'Endeks Yükseliş': {
+            'probability': abs(correlation) if correlation > 0 else 1 - abs(correlation),
+            'expected_movement': 'Yükseliş' if correlation > 0 else 'Düşüş'
+        },
+        'Endeks Düşüş': {
+            'probability': abs(correlation) if correlation < 0 else 1 - abs(correlation),
+            'expected_movement': 'Düşüş' if correlation > 0 else 'Yükseliş'
         }
+    }
+
+    return {
+        'correlation': correlation,
+        'recent_correlation': recent_correlation,
+        'strength': strength,
+        'direction': direction,
+        'scenarios': scenarios
+    }
 
 def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
     """Analiz özetini ve yorumları oluşturur."""
@@ -1221,11 +1298,11 @@ with content_col:
                                 stats_results = perform_statistical_analysis(df)
                                 pattern_results = analyze_statistical_patterns(df)
                                 scenarios = generate_alternative_scenarios(df, predictions)
-                                volume_analysis = analyze_volume_scenarios(df, predictions)
+                                volume_analysis = analyze_volume_scenarios(df)
                                 summary = generate_analysis_summary(df, predictions, risk_metrics, stats_results)
                                 
                                 # Kapsamlı rapor oluştur
-                                create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, pattern_results, scenarios, volume_analysis, content_col)
+                                create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, content_col)
                             except Exception as e:
                                 st.error(f"Kapsamlı rapor oluşturulurken bir hata oluştu: {str(e)}")
                             
