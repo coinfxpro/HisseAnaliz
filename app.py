@@ -432,84 +432,144 @@ def generate_alternative_scenarios(df, predictions):
         }
 
 def analyze_volume_scenarios(df):
-    """Hacim senaryolarına göre analiz yapar"""
-    # Son 30 günlük ortalama hacim
-    avg_volume = df['volume'].tail(30).mean()
-    current_volume = df['volume'].iloc[-1]
-    volume_ratio = current_volume / avg_volume
-
-    # Hacim senaryoları
-    scenarios = {
-        'Yüksek Hacim': {
-            'condition': volume_ratio > 2,
-            'description': 'Hacim ortalamanın 2 katından fazla',
-            'impact': 'Güçlü fiyat hareketi beklentisi'
-        },
-        'Normal Hacim': {
-            'condition': 0.5 <= volume_ratio <= 2,
-            'description': 'Hacim normal seviyelerde',
-            'impact': 'Normal fiyat hareketi beklentisi'
-        },
-        'Düşük Hacim': {
-            'condition': volume_ratio < 0.5,
-            'description': 'Hacim ortalamanın yarısından az',
-            'impact': 'Zayıf fiyat hareketi beklentisi'
+    """Hacim senaryolarını analiz eder"""
+    try:
+        # Son 30 günlük ortalama hacim
+        avg_volume = df['volume'].tail(30).mean()
+        current_volume = df['volume'].iloc[-1]
+        volume_ratio = current_volume / avg_volume
+        
+        # Hacim senaryoları
+        scenarios = {
+            'Yüksek Hacim': {
+                'threshold': 1.5,
+                'description': 'Hacim ortalamanın çok üzerinde',
+                'impact': 'Güçlü fiyat hareketi beklenir'
+            },
+            'Normal Hacim': {
+                'threshold': 0.75,
+                'description': 'Hacim normal seviyelerde',
+                'impact': 'Normal fiyat hareketi beklenir'
+            },
+            'Düşük Hacim': {
+                'threshold': 0,
+                'description': 'Hacim ortalamanın altında',
+                'impact': 'Zayıf fiyat hareketi beklenir'
+            }
         }
-    }
-
-    # Aktif senaryo tespiti
-    active_scenario = next((name for name, scenario in scenarios.items() 
-                          if scenario['condition']), 'Normal Hacim')
-
-    return {
-        'current_volume': current_volume,
-        'average_volume': avg_volume,
-        'volume_ratio': volume_ratio,
-        'active_scenario': active_scenario,
-        'scenario_details': scenarios[active_scenario]
-    }
-
-def analyze_index_correlation(df, index_data):
-    """Endeks ile korelasyon analizi yapar"""
-    # Günlük getiriler
-    stock_returns = df['Daily_Return']
-    index_returns = index_data['Daily_Return']
-
-    # Korelasyon hesaplama
-    correlation = stock_returns.corr(index_returns)
-
-    # Son 30 günlük korelasyon
-    recent_correlation = stock_returns.tail(30).corr(index_returns.tail(30))
-
-    # Korelasyon yorumu
-    if abs(correlation) > 0.7:
-        strength = "Güçlü"
-    elif abs(correlation) > 0.4:
-        strength = "Orta"
-    else:
-        strength = "Zayıf"
-
-    direction = "Pozitif" if correlation > 0 else "Negatif"
-
-    # Endeks hareket senaryoları
-    scenarios = {
-        'Endeks Yükseliş': {
-            'probability': abs(correlation) if correlation > 0 else 1 - abs(correlation),
-            'expected_movement': 'Yükseliş' if correlation > 0 else 'Düşüş'
-        },
-        'Endeks Düşüş': {
-            'probability': abs(correlation) if correlation < 0 else 1 - abs(correlation),
-            'expected_movement': 'Düşüş' if correlation > 0 else 'Yükseliş'
+        
+        # Aktif senaryoyu belirle
+        active_scenario = None
+        for scenario, details in scenarios.items():
+            if volume_ratio >= details['threshold']:
+                active_scenario = scenario
+                break
+        
+        return {
+            'current_volume': current_volume,
+            'average_volume': avg_volume,
+            'volume_ratio': volume_ratio,
+            'active_scenario': active_scenario,
+            'scenario_details': scenarios[active_scenario],
+            'description': f"""
+            **Hacim Analizi:**
+            - Güncel Hacim: {current_volume:,.0f}
+            - 30 Günlük Ortalama: {avg_volume:,.0f}
+            - Hacim/Ortalama Oranı: {volume_ratio:.2f}x
+            
+            **Senaryo: {active_scenario}**
+            - {scenarios[active_scenario]['description']}
+            - Beklenen Etki: {scenarios[active_scenario]['impact']}
+            """
         }
-    }
+        
+    except Exception as e:
+        st.error(f"Hacim analizi hatası: {str(e)}")
+        return None
 
-    return {
-        'correlation': correlation,
-        'recent_correlation': recent_correlation,
-        'strength': strength,
-        'direction': direction,
-        'scenarios': scenarios
-    }
+def analyze_index_correlation(df, bist100_data):
+    """BIST100 ile korelasyon analizi yapar"""
+    try:
+        # Getirileri hesapla
+        df_returns = df['Daily_Return']
+        bist_returns = bist100_data['Daily_Return']
+        
+        # Korelasyon hesapla
+        correlation = df_returns.corr(bist_returns)
+        recent_correlation = df_returns.tail(30).corr(bist_returns.tail(30))
+        
+        # Korelasyon gücü ve yönü
+        strength = 'Güçlü' if abs(correlation) > 0.7 else 'Orta' if abs(correlation) > 0.4 else 'Zayıf'
+        direction = 'Pozitif' if correlation > 0 else 'Negatif'
+        
+        # Senaryolar
+        scenarios = {
+            'BIST100 Yükselirse': {
+                'probability': abs(correlation),
+                'expected_movement': 'Yükseliş' if correlation > 0 else 'Düşüş'
+            },
+            'BIST100 Düşerse': {
+                'probability': abs(correlation),
+                'expected_movement': 'Düşüş' if correlation > 0 else 'Yükseliş'
+            }
+        }
+        
+        return {
+            'correlation': correlation,
+            'recent_correlation': recent_correlation,
+            'strength': strength,
+            'direction': direction,
+            'scenarios': scenarios,
+            'description': f"""
+            **Korelasyon Analizi:**
+            - Genel Korelasyon: {correlation:.2f}
+            - Son 30 Gün Korelasyonu: {recent_correlation:.2f}
+            - Korelasyon Gücü: {strength}
+            - Korelasyon Yönü: {direction}
+            
+            **Olası Senaryolar:**
+            - BIST100 Yükselirse: %{abs(correlation)*100:.1f} olasılıkla {scenarios['BIST100 Yükselirse']['expected_movement']}
+            - BIST100 Düşerse: %{abs(correlation)*100:.1f} olasılıkla {scenarios['BIST100 Düşerse']['expected_movement']}
+            """
+        }
+        
+    except Exception as e:
+        st.error(f"Endeks korelasyonu analizi hatası: {str(e)}")
+        return None
+
+def perform_statistical_analysis(df):
+    """İstatistiksel analiz yapar"""
+    try:
+        # Temel istatistikler
+        returns = df['Daily_Return'].dropna()
+        mean_return = returns.mean()
+        std_dev = returns.std()
+        skewness = returns.skew()
+        
+        # Teknik göstergeler
+        rsi = df['RSI'].iloc[-1] if 'RSI' in df.columns else 50
+        macd = df['MACD'].iloc[-1] if 'MACD' in df.columns else 0
+        signal = df['Signal'].iloc[-1] if 'Signal' in df.columns else 0
+        
+        return {
+            'Ortalama Getiri': mean_return,
+            'Standart Sapma': std_dev,
+            'Çarpıklık': skewness,
+            'RSI': rsi,
+            'MACD': macd,
+            'Signal': signal
+        }
+        
+    except Exception as e:
+        st.error(f"İstatistiksel analiz hatası: {str(e)}")
+        return {
+            'Ortalama Getiri': 0.0,
+            'Standart Sapma': 0.0,
+            'Çarpıklık': 0.0,
+            'RSI': 50.0,
+            'MACD': 0.0,
+            'Signal': 0.0
+        }
 
 def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
     """Analiz özetini ve yorumları oluşturur."""
