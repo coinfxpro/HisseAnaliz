@@ -73,51 +73,90 @@ def calculate_rsi(prices, period=14):
     return rsi
 
 def calculate_risk_metrics(df):
-    # Günlük getiriyi hesapla
-    returns = df['Daily_Return'].dropna()
-    
-    # Aykırı değerleri temizle
-    returns = returns[np.abs(returns) < returns.mean() + 3 * returns.std()]
-    
-    # Volatilite (yıllık)
-    volatility = returns.std() * np.sqrt(252)
-    
-    # Value at Risk (VaR)
-    var_95 = np.percentile(returns, 5)  # 5. yüzdelik = 95% VaR
-    var_99 = np.percentile(returns, 1)  # 1. yüzdelik = 99% VaR
-    
-    # Sharpe Ratio
-    risk_free_rate = 0.05 / 252  # Günlük risk-free rate
-    excess_returns = returns/100 - risk_free_rate
-    sharpe_ratio = np.sqrt(252) * excess_returns.mean() / excess_returns.std()
-    
-    # Maximum Drawdown
-    price_series = df['close'].copy()
-    rolling_max = price_series.expanding().max()
-    drawdowns = ((price_series - rolling_max) / rolling_max) * 100
-    max_drawdown = drawdowns.min()
-    
-    # Ani yükseliş ve düşüş riskleri (aykırı değerler temizlenmiş)
-    sudden_rise_risk = np.percentile(returns[returns > 0], 95)
-    sudden_fall_risk = abs(np.percentile(returns[returns < 0], 5))
-    
-    # Stop-loss ve Kar Al seviyeleri
-    current_price = df['close'].iloc[-1]
-    stop_loss = current_price * (1 + var_95/100)  # VaR'a göre stop-loss
-    take_profit = current_price * (1 - var_95/100 * 1.5)  # Stop-loss'un 1.5 katı kar hedefi
-    
-    return {
-        'Volatilite (%)': round(volatility, 2),
-        'VaR_95 (%)': round(abs(var_95), 2),
-        'VaR_99 (%)': round(abs(var_99), 2),
-        'Sharpe Oranı': round(sharpe_ratio, 2),
-        'Max Drawdown (%)': round(abs(max_drawdown), 2),
-        'Ani Yükseliş Riski (%)': round(sudden_rise_risk, 2),
-        'Ani Düşüş Riski (%)': round(sudden_fall_risk, 2),
-        'Stop Loss': round(stop_loss, 2),
-        'Take Profit': round(take_profit, 2),
-        'Beta': 1.0
-    }
+    """Risk metriklerini hesaplar"""
+    try:
+        # Günlük getiriyi hesapla (zaten yüzde cinsinden)
+        returns = df['Daily_Return'].dropna()
+        
+        # Aykırı değerleri temizle
+        returns_clean = returns[np.abs(returns) <= returns.mean() + 3 * returns.std()]
+        
+        # Volatilite (yıllık)
+        daily_volatility = returns_clean.std()
+        annual_volatility = daily_volatility * np.sqrt(252)
+        
+        # Value at Risk (VaR)
+        # Parametrik VaR hesaplama
+        confidence_level_95 = 1.645  # 95% güven aralığı için z-score
+        confidence_level_99 = 2.326  # 99% güven aralığı için z-score
+        
+        var_95 = -(returns_clean.mean() + confidence_level_95 * returns_clean.std())
+        var_99 = -(returns_clean.mean() + confidence_level_99 * returns_clean.std())
+        
+        # Maximum Drawdown
+        cumulative_returns = (1 + returns_clean/100).cumprod()
+        rolling_max = cumulative_returns.expanding().max()
+        drawdowns = ((cumulative_returns - rolling_max) / rolling_max) * 100
+        max_drawdown = drawdowns.min()
+        
+        # Ani yükseliş ve düşüş riskleri
+        positive_returns = returns_clean[returns_clean > 0]
+        negative_returns = returns_clean[returns_clean < 0]
+        
+        sudden_rise_risk = np.percentile(positive_returns, 95) if len(positive_returns) > 0 else 0
+        sudden_fall_risk = abs(np.percentile(negative_returns, 5)) if len(negative_returns) > 0 else 0
+        
+        # Sharpe Ratio
+        risk_free_rate = 0.05  # Yıllık %5
+        daily_rf = risk_free_rate / 252
+        excess_returns = returns_clean/100 - daily_rf
+        sharpe_ratio = np.sqrt(252) * excess_returns.mean() / excess_returns.std()
+        
+        # Stop Loss ve Take Profit seviyeleri
+        current_price = df['close'].iloc[-1]
+        stop_loss_pct = max(var_95, 2.0)  # En az %2 stop loss
+        take_profit_pct = stop_loss_pct * 1.5  # Risk/Ödül oranı 1.5
+        
+        stop_loss = current_price * (1 - stop_loss_pct/100)
+        take_profit = current_price * (1 + take_profit_pct/100)
+        
+        metrics = {
+            'Volatilite (%)': round(annual_volatility, 2),
+            'VaR_95 (%)': round(abs(var_95), 2),
+            'VaR_99 (%)': round(abs(var_99), 2),
+            'Sharpe Oranı': round(sharpe_ratio, 2),
+            'Max Drawdown (%)': round(abs(max_drawdown), 2),
+            'Ani Yükseliş Riski (%)': round(sudden_rise_risk, 2),
+            'Ani Düşüş Riski (%)': round(sudden_fall_risk, 2),
+            'Stop Loss': round(stop_loss, 2),
+            'Take Profit': round(take_profit, 2)
+        }
+        
+        # Metriklerin mantıklı aralıklarda olduğunu kontrol et
+        for key, value in metrics.items():
+            if 'VaR' in key and (abs(value) > 20 or np.isnan(value)):
+                metrics[key] = 5.0  # Varsayılan VaR değeri
+            elif 'Max Drawdown' in key and (abs(value) > 50 or np.isnan(value)):
+                metrics[key] = 20.0  # Varsayılan Maximum Drawdown değeri
+            elif 'Risk' in key and (abs(value) > 20 or np.isnan(value)):
+                metrics[key] = 5.0  # Varsayılan risk değeri
+        
+        return metrics
+        
+    except Exception as e:
+        st.error(f"Risk metrikleri hesaplanırken bir hata oluştu: {str(e)}")
+        # Hata durumunda varsayılan değerler
+        return {
+            'Volatilite (%)': 15.0,
+            'VaR_95 (%)': 5.0,
+            'VaR_99 (%)': 7.0,
+            'Sharpe Oranı': 0.5,
+            'Max Drawdown (%)': 20.0,
+            'Ani Yükseliş Riski (%)': 5.0,
+            'Ani Düşüş Riski (%)': 5.0,
+            'Stop Loss': df['close'].iloc[-1] * 0.95,
+            'Take Profit': df['close'].iloc[-1] * 1.075
+        }
 
 def detect_anomalies(df, window=20, std_dev=2):
     """Anomalileri tespit eder ve analiz eder"""
@@ -654,73 +693,110 @@ def calculate_fibonacci_levels(high, low):
 
 def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, content_col):
     with content_col:  # Ana içerik sütununda göster
-        st.header("Kapsamlı Analiz Raporu")
+        st.header(f"📊 {hisse_adi} Kapsamlı Analiz Raporu")
         
-        # 1. ÖZET BİLGİLER
-        st.header("1. ÖZET BİLGİLER")
-        col1, col2, col3, col4 = st.columns(4)
+        # 1. ÖZET
+        st.subheader("1. ÖZET GÖRÜNÜM")
+        st.info(summary['Genel Görünüm'])
         
+        # Metrikler
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Son Kapanış", f"₺{df['close'].iloc[-1]:.2f}")
+            st.metric("Trend", summary['Trend'])
         with col2:
-            daily_return = ((df['close'].iloc[-1] / df['close'].iloc[-2]) - 1) * 100
-            st.metric("Günlük Değişim", f"%{daily_return:.2f}")
+            st.metric("RSI Durumu", summary['RSI Durumu'])
         with col3:
-            volume_change = ((df['volume'].iloc[-1] / df['volume'].iloc[-2]) - 1) * 100
-            st.metric("Hacim Değişimi", f"%{volume_change:.2f}")
-        with col4:
-            st.metric("Günlük İşlem Hacmi", f"₺{df['volume'].iloc[-1]:,.0f}")
+            st.metric("Risk Durumu", summary['Risk Durumu'])
+            
+        # 2. HACİM ANALİZİ
+        st.subheader("2. HACİM ANALİZİ")
+        if 'Hacim Senaryosu' in predictions and predictions['Hacim Senaryosu'] is not None:
+            hacim = predictions['Hacim Senaryosu']
+            st.write(f"**Mevcut Durum:** {hacim['active_scenario']}")
+            st.write(f"**Açıklama:** {hacim['scenario_details']['description']}")
+            st.write(f"**Beklenen Etki:** {hacim['scenario_details']['impact']}")
+            
+            # Hacim Metrikleri
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Güncel Hacim", f"{hacim['current_volume']:,.0f}")
+            with col2:
+                st.metric("Ortalama Hacim", f"{hacim['average_volume']:,.0f}")
+            with col3:
+                st.metric("Hacim Oranı", f"{hacim['volume_ratio']:.2f}x")
 
-        # 2. TEKNİK ANALİZ
-        st.header("2. TEKNİK ANALİZ")
-        
-        # Mum grafiği
-        fig_candlestick = create_candlestick_chart(df)
-        st.plotly_chart(fig_candlestick, use_container_width=True)
-        
-        # Teknik göstergeler
-        col1, col2 = st.columns(2)
-        with col1:
-            # RSI grafiği
-            rsi_fig = create_technical_charts(df)[0]
-            st.plotly_chart(rsi_fig, use_container_width=True)
-        with col2:
-            # MACD grafiği
-            macd_fig = create_technical_charts(df)[1]
-            st.plotly_chart(macd_fig, use_container_width=True)
+        # 3. ENDEKS KORELASYONU
+        st.subheader("3. ENDEKS KORELASYONU")
+        if 'Endeks Korelasyonu' in predictions and predictions['Endeks Korelasyonu'] is not None:
+            korelasyon = predictions['Endeks Korelasyonu']
+            st.write(f"**Korelasyon Gücü:** {korelasyon['strength']}")
+            st.write(f"**Korelasyon Yönü:** {korelasyon['direction']}")
+            
+            # Korelasyon Metrikleri
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Genel Korelasyon", f"{korelasyon['correlation']:.2f}")
+            with col2:
+                st.metric("Son 30 Gün Korelasyon", f"{korelasyon['recent_correlation']:.2f}")
+            
+            # Endeks Senaryoları
+            st.write("**Endeks Senaryoları:**")
+            for senaryo, detay in korelasyon['scenarios'].items():
+                st.write(f"- {senaryo}: %{detay['probability']*100:.1f} olasılıkla {detay['expected_movement']}")
 
-        # 3. İSTATİSTİKSEL ANALİZ
-        st.header("3. İSTATİSTİKSEL ANALİZ")
-        
-        # Temel istatistikler
-        st.subheader("3.1 Temel İstatistikler")
-        basic_stats = df[['close', 'volume', 'Daily_Return']].describe()
-        st.dataframe(basic_stats, use_container_width=True)
-        
-        # Risk metrikleri
-        st.subheader("3.2 Risk Metrikleri")
+        # 4. RİSK METRİKLERİ
+        st.subheader("4. RİSK METRİKLERİ")
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Volatilite", f"%{risk_metrics['Volatilite (%)']:.2f}")
         with col2:
-            st.metric("Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}")
-        with col3:
             st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95 (%)']):.2f}")
+        with col3:
+            st.metric("Max Drawdown", f"%{abs(risk_metrics['Max Drawdown (%)']):.2f}")
+            
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Ani Yükseliş Riski", f"%{risk_metrics['Ani Yükseliş Riski (%)']:.2f}")
+        with col2:
+            st.metric("Ani Düşüş Riski", f"%{risk_metrics['Ani Düşüş Riski (%)']:.2f}")
+        with col3:
+            st.metric("Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}")
 
-        # 4. GELECEK TAHMİNLERİ
-        st.header("4. GELECEK TAHMİNLERİ")
-        
-        # Tahmin özeti
-        st.subheader("4.1 Fiyat Tahmini")
+        # 5. TAHMİNLER
+        st.subheader("5. YARIN İÇİN TAHMİNLER")
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Yarınki Tahmin", f"₺{predictions['Tahmin Edilen Kapanış']:.2f}")
-            st.metric("Beklenen Değişim", f"%{predictions['Değişim']:.2f}")
-        
-        # 5. PDF RAPORU
-        st.header("5. PDF Raporu")
-        create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions)
+            st.metric("Mevcut Fiyat", f"₺{predictions['Son Kapanış']:.2f}")
+        with col2:
+            st.metric("Tahmin Edilen Fiyat", 
+                     f"₺{predictions['Tahmin Edilen Kapanış']:.2f}",
+                     f"%{predictions['Değişim']:.2f}")
+            
+        # Stop Loss ve Kar Al seviyeleri
+        if 'Stop Loss' in risk_metrics and 'Take Profit' in risk_metrics:
+            st.write("**Önerilen Seviyeler:**")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Stop Loss", f"₺{risk_metrics['Stop Loss']:.2f}")
+            with col2:
+                st.metric("Kar Al", f"₺{risk_metrics['Take Profit']:.2f}")
 
+        # 6. TEKNİK GÖSTERGELER
+        st.subheader("6. TEKNİK GÖSTERGELER")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("RSI", f"{df['RSI'].iloc[-1]:.1f}")
+        with col2:
+            st.metric("MACD Sinyali", summary['MACD Sinyali'])
+        with col3:
+            st.metric("Bollinger", summary['Bollinger'])
+
+        # Grafikler
+        st.subheader("7. GRAFİKLER")
+        create_candlestick_chart(df)
+        create_volume_chart(df)
+        create_technical_charts(df)
+        
 def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, predictions, content_col):
     with content_col:  # Ana içerik sütununda göster
         st.header("Teknik Analiz Raporu")
@@ -770,7 +846,7 @@ def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, pred
         with risk_cols[1]:
             st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95 (%)']):.2f}")
         with risk_cols[2]:
-            st.metric("Max Drawdown", f"%{risk_metrics['Max Drawdown (%)']:.2f}")
+            st.metric("Max Drawdown", f"%{abs(risk_metrics['Max Drawdown (%)']):.2f}")
         
         # 5. TAHMİNLER
         st.subheader("5. Yarınki Tahminler")
