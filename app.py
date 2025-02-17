@@ -650,8 +650,8 @@ def analyze_index_correlation(df, bist100_data):
             return "BIST100 verisi bulunamadı veya yanlış formatta. Korelasyon analizi yapılamadı."
             
         if 'Daily_Return' not in bist100_data.columns:
-            return "BIST100 verisinde günlük getiri (Daily_Return) sütunu bulunamadı."  
-        
+            return "BIST100 verisinde günlük getiri (Daily_Return) sütunu bulunamadı."
+            
         # Tarihleri indeks olarak ayarla
         df.index = pd.to_datetime(df.index)
         bist100_data.index = pd.to_datetime(bist100_data.index)
@@ -659,8 +659,8 @@ def analyze_index_correlation(df, bist100_data):
         # Ortak tarihleri bul
         common_dates = df.index.intersection(bist100_data.index)
         if len(common_dates) == 0:
-            return "Hisse ve BIST100 verileri arasında ortak tarih bulunamadı."   
-        
+            return "Hisse ve BIST100 verileri arasında ortak tarih bulunamadı."
+            
         # Ortak tarihlere göre verileri filtrele
         df_returns = df.loc[common_dates, 'Daily_Return']
         bist_returns = bist100_data.loc[common_dates, 'Daily_Return']
@@ -670,10 +670,14 @@ def analyze_index_correlation(df, bist100_data):
         
         # Korelasyon hesapla
         correlation = df_returns.corr(bist_returns)
+        if pd.isna(correlation):
+            correlation = 0
         
         # Son 30 gün için korelasyon
         last_30_dates = common_dates[-30:] if len(common_dates) >= 30 else common_dates
         recent_correlation = df_returns.loc[last_30_dates].corr(bist_returns.loc[last_30_dates])
+        if pd.isna(recent_correlation):
+            recent_correlation = 0
         
         # Korelasyon gücü ve yönü
         strength = 'Güçlü' if abs(correlation) > 0.7 else 'Orta' if abs(correlation) > 0.4 else 'Zayıf'
@@ -681,10 +685,18 @@ def analyze_index_correlation(df, bist100_data):
         
         # Beta hesapla
         try:
-            cov_matrix = np.cov(df_returns, bist_returns)
-            if len(cov_matrix) > 1:
-                beta = cov_matrix[0][1] / np.var(bist_returns)
-            else:
+            # Günlük getirileri yüzde olarak kullan
+            df_returns_pct = df_returns / 100
+            bist_returns_pct = bist_returns / 100
+            
+            # Kovaryans matrisini hesapla
+            cov = np.cov(df_returns_pct, bist_returns_pct)[0,1]
+            var = np.var(bist_returns_pct)
+            
+            # Beta hesapla
+            beta = cov / var if var != 0 else 0
+            
+            if pd.isna(beta):
                 beta = 0
         except:
             beta = 0
@@ -693,7 +705,7 @@ def analyze_index_correlation(df, bist100_data):
         analysis_text = f"""
         **🔄 BIST100 Korelasyon Analizi**
         
-        **📊 Korelasyon:**
+        **📊 Korelasyon Metrikleri:**
         - Genel Korelasyon: {correlation:.2f}
         - Son {len(last_30_dates)} Gün Korelasyonu: {recent_correlation:.2f}
         - Korelasyon Gücü: {strength}
@@ -835,19 +847,49 @@ def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
     try:
         # Son fiyat ve değişim
         current_price = df['close'].iloc[-1]
-        price_change = df['Daily_Return'].iloc[-1] * 100
+        price_change = df['Daily_Return'].iloc[-1]
         
         # Trend analizi
         short_trend = df['close'].tail(5).mean() > df['close'].tail(20).mean()
         long_trend = df['close'].tail(20).mean() > df['close'].tail(50).mean()
+        
+        # Trend yönünü belirle
+        if short_trend and long_trend:
+            trend = "Yükseliş trendi"
+        elif not short_trend and not long_trend:
+            trend = "Düşüş trendi"
+        elif short_trend:
+            trend = "Kısa vadeli yükseliş trendi"
+        else:
+            trend = "Kısa vadeli düşüş trendi"
         
         # RSI ve MACD durumu
         rsi = stats_results['RSI']
         macd = stats_results['MACD']
         signal = stats_results['Signal']
         
-        # Tahmin yönü
-        prediction_direction = "Yükseliş" if predictions['Değişim'] > 0 else "Düşüş"
+        # RSI durumu
+        if rsi > 70:
+            rsi_status = "Aşırı alım bölgesinde"
+        elif rsi < 30:
+            rsi_status = "Aşırı satım bölgesinde"
+        else:
+            rsi_status = "Normal bölgede"
+        
+        # MACD sinyali
+        if macd > signal and macd > 0:
+            macd_signal = "Güçlü alış"
+        elif macd > signal:
+            macd_signal = "Zayıf alış"
+        elif macd < signal and macd < 0:
+            macd_signal = "Güçlü satış"
+        else:
+            macd_signal = "Zayıf satış"
+        
+        # Tahmin yönü ve öneriler
+        pred_direction = "Yükseliş" if predictions['Değişim'] > 0 else "Düşüş"
+        pred_change = predictions['Değişim']
+        pred_price = predictions['Tahmin Edilen Kapanış']
         
         summary_text = f"""
         **🎯 Genel Görünüm ve Öneriler**
@@ -855,44 +897,19 @@ def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
         **📊 Mevcut Durum:**
         - Güncel Fiyat: ₺{current_price:.2f}
         - Günlük Değişim: %{price_change:.2f}
-        - {
-            'Güçlü yükseliş trendi' if short_trend and long_trend else
-            'Kısa vadeli yükseliş, uzun vadeli düşüş' if short_trend else
-            'Kısa vadeli düşüş, uzun vadeli yükseliş' if long_trend else
-            'Düşüş trendi'
-        }
+        - {trend}
         
         **🔮 Teknik Görünüm:**
-        - RSI Durumu: {
-            'Aşırı alım bölgesinde' if rsi > 70 else
-            'Aşırı satım bölgesinde' if rsi < 30 else
-            'Normal bölgede'
-        }
-        - MACD Sinyali: {
-            'Güçlü alım' if macd > signal and macd > 0 else
-            'Zayıf alım' if macd > signal else
-            'Güçlü satış' if macd < signal and macd < 0 else
-            'Zayıf satış'
-        }
+        - RSI Durumu: {rsi_status}
+        - MACD Sinyali: {macd_signal}
         
         **📈 Tahmin ve Beklentiler:**
-        - Beklenen Yön: {prediction_direction}
-        - Hedef Fiyat: ₺{predictions['Tahmin Edilen Kapanış']:.2f}
-        - Beklenen Değişim: %{predictions['Değişim']:.2f}
+        - Beklenen Yön: {pred_direction}
+        - Hedef Fiyat: ₺{pred_price:.2f}
+        - Beklenen Değişim: %{pred_change:.2f}
         
         **💡 Öneriler:**
-        - {
-            'Kısa vadeli kar realizasyonu düşünülebilir' if rsi > 70 and price_change > 2 else
-            'Alım için uygun seviyeler' if rsi < 30 and price_change < -2 else
-            'Mevcut pozisyonlar korunabilir' if 30 <= rsi <= 70 else
-            'Temkinli yaklaşılmalı'
-        }
-        - {
-            'Stop-loss seviyeleri yukarı çekilebilir' if short_trend and long_trend else
-            'Yeni alımlar için düşüşler beklenebilir' if not short_trend and long_trend else
-            'Kademeli alım stratejisi izlenebilir' if short_trend and not long_trend else
-            'Risk yönetimine dikkat edilmeli'
-        }
+        {generate_recommendations(rsi, macd, signal, trend, pred_change)}
         
         ⚠️ Not: Bu analizler sadece bilgilendirme amaçlıdır ve kesin alım-satım önerisi içermez.
         """
@@ -902,6 +919,36 @@ def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
     except Exception as e:
         st.error(f"Analiz özeti oluşturma hatası: {str(e)}")
         return "Analiz özeti oluşturulamadı. Veri kalitesini kontrol edin."
+
+def generate_recommendations(rsi, macd, signal, trend, pred_change):
+    """Teknik göstergelere göre öneriler oluşturur"""
+    recommendations = []
+    
+    # RSI bazlı öneriler
+    if rsi > 70:
+        recommendations.append("Aşırı alım bölgesinde, kar realizasyonu düşünülebilir")
+    elif rsi < 30:
+        recommendations.append("Aşırı satım bölgesinde, alım fırsatı olabilir")
+    else:
+        recommendations.append("Mevcut pozisyonlar korunabilir")
+    
+    # MACD bazlı öneriler
+    if macd > signal and macd > 0:
+        recommendations.append("Güçlü alım sinyali mevcut")
+    elif macd < signal and macd < 0:
+        recommendations.append("Güçlü satış sinyali mevcut")
+    
+    # Trend bazlı öneriler
+    if "Yükseliş" in trend:
+        recommendations.append("Stop-loss seviyeleri yukarı çekilebilir")
+    elif "Düşüş" in trend:
+        recommendations.append("Risk yönetimine dikkat edilmeli")
+    
+    # Tahmin bazlı öneriler
+    if abs(pred_change) > 5:
+        recommendations.append(f"{'Yüksek yükseliş' if pred_change > 0 else 'Yüksek düşüş'} potansiyeli, dikkatli takip önerilir")
+    
+    return "- " + "\n- ".join(recommendations)
 
 def create_candlestick_chart(df):
     # Mum grafiği
@@ -1007,19 +1054,19 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
                 st.metric("Son Kapanış", 
                          f"₺{df['close'].iloc[-1]:.2f}", 
                          f"%{daily_return:.2f}",
-                         delta_color="inverse")  # normal kullanarak pozitif/negatif rengini otomatik belirler
+                         delta_color="inverse")
             with col2:
                 volume_change = ((df['volume'].iloc[-1] / df['volume'].iloc[-2]) - 1) * 100
                 st.metric("Günlük Hacim", 
                          f"{df['volume'].iloc[-1]:,.0f}",
                          f"%{volume_change:.2f}",
-                         delta_color="normal")
+                         delta_color="inverse")
             with col3:
                 pred_change = predictions['Değişim']
                 st.metric("Tahmin", 
                          f"₺{predictions['Tahmin Edilen Kapanış']:.2f}",
                          f"%{pred_change:.2f}",
-                         delta_color="normal")
+                         delta_color="inverse")
             
             # BIST100 analizi (eğer varsa)
             if 'BIST100 Analizi' in predictions:
@@ -1156,6 +1203,7 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         
         son_fiyat = df['close'].iloc[-1]
         gunluk_degisim = ((son_fiyat - df['close'].iloc[-2]) / df['close'].iloc[-2]) * 100
+        
         haftalik_degisim = ((son_fiyat - df['close'].iloc[-6]) / df['close'].iloc[-6]) * 100
         aylik_degisim = ((son_fiyat - df['close'].iloc[-22]) / df['close'].iloc[-22]) * 100
         
