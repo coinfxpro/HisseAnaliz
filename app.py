@@ -1544,8 +1544,28 @@ def main():
         with sidebar:
             st.header("📈 Analiz Parametreleri")
             
-            # Dosya yükleme
-            uploaded_file = st.file_uploader("CSV dosyası yükleyin", type=['csv'])
+            # Hisse senedi verisi yükleme
+            st.subheader("📊 Hisse Senedi Verisi")
+            uploaded_file = st.file_uploader("Hisse CSV dosyası yükleyin", type=['csv'])
+            
+            # BIST100 analizi seçeneği
+            use_bist100 = st.checkbox("🔄 BIST100 Analizi Yap", value=False)
+            
+            # BIST100 verisi yükleme (eğer seçenek aktifse)
+            bist100_data = None
+            if use_bist100:
+                st.subheader("📈 BIST100 Verisi")
+                bist100_file = st.file_uploader("BIST100 CSV dosyası yükleyin", type=['csv'], key="bist100")
+                if bist100_file is not None:
+                    try:
+                        bist100_df = pd.read_csv(bist100_file)
+                        bist100_data = prepare_data(bist100_df)
+                        if bist100_data is not None:
+                            st.success("✅ BIST100 verisi başarıyla yüklendi")
+                        else:
+                            st.error("❌ BIST100 verisi hazırlanamadı")
+                    except Exception as e:
+                        st.error(f"❌ BIST100 verisi okuma hatası: {str(e)}")
             
             if uploaded_file is not None:
                 try:
@@ -1560,12 +1580,6 @@ def main():
                         hisse_adi = uploaded_file.name.split('.')[0].upper()
                         st.success(f"✅ {hisse_adi} verisi başarıyla yüklendi")
                         
-                        # BIST100 verilerini çek
-                        start_date = df.index[0]
-                        end_date = df.index[-1]
-                        with st.spinner('BIST100 verisi alınıyor...'):
-                            bist100_data = get_bist100_data(start_date, end_date)
-                        
                         # Analiz butonu
                         if st.button("🔄 Analiz Et"):
                             with st.spinner('Analiz yapılıyor...'):
@@ -1577,7 +1591,23 @@ def main():
                                     stats_results = perform_statistical_analysis(df)
                                     
                                     # Tahminleri yap
-                                    predictions = predict_next_day(df, bist100_data)
+                                    predictions = {
+                                        'Tahmin Edilen Kapanış': 0.0,
+                                        'Değişim': 0.0,
+                                        'Açıklama': ''
+                                    }
+                                    
+                                    # BIST100 analizi (eğer seçenek aktif ve veri yüklendiyse)
+                                    if use_bist100 and bist100_data is not None:
+                                        # Korelasyon analizi
+                                        correlation_analysis = analyze_index_correlation(df, bist100_data)
+                                        predictions['BIST100 Analizi'] = correlation_analysis
+                                        
+                                        # Tahminleri güncelle
+                                        predictions = predict_next_day(df, bist100_data)
+                                    else:
+                                        # BIST100 olmadan tahmin yap
+                                        predictions = predict_next_day(df, None)
                                     
                                     if predictions:
                                         # Kapsamlı rapor oluştur
@@ -1602,7 +1632,7 @@ def main():
                 except Exception as e:
                     st.error(f"❌ Dosya okuma hatası: {str(e)}")
             else:
-                st.info("ℹ️ Lütfen bir CSV dosyası yükleyin.")
+                st.info("ℹ️ Lütfen bir hisse senedi CSV dosyası yükleyin.")
                 
         # Ana içerik alanı
         with main_content:
@@ -1615,17 +1645,19 @@ def main():
                 #### 🚀 Özellikler:
                 - ✨ Detaylı Teknik Analiz
                 - 📈 Risk Metrikleri
-                - 🔄 BIST100 Korelasyonu
+                - 🔄 BIST100 Korelasyonu (Opsiyonel)
                 - 🎯 Fiyat Tahminleri
                 - 📊 Kapsamlı Raporlama
                 
                 #### 📝 Nasıl Kullanılır:
-                1. Sol panelden CSV dosyanızı yükleyin
-                2. "Analiz Et" butonuna tıklayın
-                3. Detaylı analiz sonuçlarını inceleyin
+                1. Sol panelden hisse senedi CSV dosyanızı yükleyin
+                2. BIST100 analizi yapmak istiyorsanız seçeneği aktif edin
+                3. BIST100 analizi seçiliyse, BIST100 CSV dosyasını yükleyin
+                4. "Analiz Et" butonuna tıklayın
+                5. Detaylı analiz sonuçlarını inceleyin
                 
                 #### 📋 CSV Formatı:
-                Dosyanızda şu sütunlar bulunmalıdır:
+                Dosyalarınızda şu sütunlar bulunmalıdır:
                 - date: Tarih
                 - open: Açılış fiyatı
                 - high: En yüksek fiyat
