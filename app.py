@@ -959,30 +959,37 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
             # Fiyat ve hacim bilgileri
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Son Kapanış", f"₺{df['close'].iloc[-1]:.2f}", 
-                         f"%{df['Daily_Return'].iloc[-1]:.2f}")
+                daily_return = df['Daily_Return'].iloc[-1]
+                st.metric("Son Kapanış", 
+                         f"₺{df['close'].iloc[-1]:.2f}", 
+                         f"%{daily_return:.2f}",
+                         delta_color="normal")  # normal kullanarak pozitif/negatif rengini otomatik belirler
             with col2:
-                st.metric("Günlük Hacim", f"{df['volume'].iloc[-1]:,.0f}",
-                         f"%{((df['volume'].iloc[-1] / df['volume'].iloc[-2]) - 1) * 100:.2f}")
+                volume_change = ((df['volume'].iloc[-1] / df['volume'].iloc[-2]) - 1) * 100
+                st.metric("Günlük Hacim", 
+                         f"{df['volume'].iloc[-1]:,.0f}",
+                         f"%{volume_change:.2f}",
+                         delta_color="normal")
             with col3:
+                pred_change = predictions['Değişim']
                 st.metric("Tahmin", 
                          f"₺{predictions['Tahmin Edilen Kapanış']:.2f}",
-                         f"%{predictions['Değişim']:.2f}")
+                         f"%{pred_change:.2f}",
+                         delta_color="normal")
+            
+            # BIST100 analizi (eğer varsa)
+            if 'BIST100 Analizi' in predictions:
+                st.subheader("🔄 BIST100 Analizi")
+                st.write(predictions['BIST100 Analizi'])
             
             # Hacim analizi
             st.subheader("📊 Hacim Analizi")
             hacim_analizi = analyze_volume_scenarios(df)
             st.write(hacim_analizi)
             
-            # BIST100 korelasyonu
-            if 'Endeks Korelasyonu' in predictions:
-                st.subheader("🔄 BIST100 Korelasyonu")
-                korelasyon_analizi = analyze_index_correlation(df, predictions['Endeks Korelasyonu'])
-                st.write(korelasyon_analizi)
-            
             # Örüntü analizi
             st.subheader("📈 Teknik Örüntüler")
-            oruntu_analizi = detect_patterns(df)
+            oruntu_analizi, _ = detect_patterns(df)
             st.write(oruntu_analizi)
             
             # Anomali analizi
@@ -1003,8 +1010,6 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
                 st.write(f"- Maximum Drawdown: %{risk_metrics['Max Drawdown (%)']:.2f}")
                 st.write(f"- Ani Yükseliş Riski: %{risk_metrics['Ani Yükseliş Riski (%)']:.2f}")
                 st.write(f"- Ani Düşüş Riski: %{risk_metrics['Ani Düşüş Riski (%)']:.2f}")
-            risk_analysis = generate_risk_analysis(risk_metrics)
-            st.write(risk_analysis)
             
             # İstatistiksel analiz
             st.subheader("📊 İstatistiksel Analiz")
@@ -1019,13 +1024,14 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
                 st.write(f"- RSI: {stats_results['RSI']:.2f}")
                 st.write(f"- MACD: {stats_results['MACD']:.2f}")
                 st.write(f"- Signal: {stats_results['Signal']:.2f}")
-            stats_analysis = generate_statistical_analysis(stats_results)
-            st.write(stats_analysis)
+            
+            # Tahmin detayları
+            if 'Açıklama' in predictions:
+                st.subheader("🔮 Tahmin Detayları")
+                st.write(predictions['Açıklama'])
             
             # Genel görünüm ve öneriler
             st.subheader("🎯 Genel Görünüm ve Öneriler")
-            st.write(summary)
-            summary = generate_analysis_summary(df, predictions, risk_metrics, stats_results)
             st.write(summary)
             
             # Uyarı notu
