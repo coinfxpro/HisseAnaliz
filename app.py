@@ -302,45 +302,46 @@ def calculate_risk_metrics(df):
 
 def detect_anomalies(df, window=20, std_dev=2):
     """Anomalileri tespit eder ve analiz eder"""
-    returns = df['Daily_Return'].copy()
-    
-    # Rolling ortalama ve standart sapma
-    rolling_mean = returns.rolling(window=window).mean()
-    rolling_std = returns.rolling(window=window).std()
-    
-    # Anomali tespiti
-    upper_bound = rolling_mean + (std_dev * rolling_std)
-    lower_bound = rolling_mean - (std_dev * rolling_std)
-    
-    # Aykırı değerleri temizle (çok ekstrem değerleri)
-    returns = returns[np.abs(returns) < returns.mean() + 3 * returns.std()]
-    
-    # Anomalileri belirle
-    anomalies_high = returns[returns > upper_bound]
-    anomalies_low = returns[returns < lower_bound]
-    
-    # Son 30 günlük anomaliler
-    last_30_days = returns[-30:]
-    recent_anomalies = len(last_30_days[
-        (last_30_days > upper_bound[-30:]) | 
-        (last_30_days < lower_bound[-30:])
-    ])
-    
-    # Önemli anomali tarihlerini bul (en yüksek 5 pozitif ve negatif)
-    top_anomalies = returns[returns > upper_bound].nlargest(5)
-    bottom_anomalies = returns[returns < lower_bound].nsmallest(5)
-    
-    # Anomali istatistikleri
-    stats = {
-        'positive_count': len(anomalies_high),
-        'negative_count': len(anomalies_low),
-        'positive_mean': anomalies_high.mean() if len(anomalies_high) > 0 else 0,
-        'negative_mean': anomalies_low.mean() if len(anomalies_low) > 0 else 0,
-        'recent_anomalies': recent_anomalies,
-        'important_dates': pd.concat([top_anomalies, bottom_anomalies]).sort_values(ascending=False)
-    }
-    
-    return stats
+    try:
+        returns = df['Daily_Return'].copy()
+        
+        # Rolling ortalama ve standart sapma
+        rolling_mean = returns.rolling(window=window).mean()
+        rolling_std = returns.rolling(window=window).std()
+        
+        # Anomali bantları
+        upper_bound = rolling_mean + (std_dev * rolling_std)
+        lower_bound = rolling_mean - (std_dev * rolling_std)
+        
+        # Aykırı değerleri temizle (çok ekstrem değerleri)
+        returns = returns[np.abs(returns) < returns.mean() + 3 * returns.std()]
+        
+        # Anomalileri belirle
+        anomalies_high = returns[returns > upper_bound]
+        anomalies_low = returns[returns < lower_bound]
+        
+        # Son 30 günlük anomaliler
+        last_30_days = returns[-30:]
+        recent_anomalies = len(last_30_days[
+            (last_30_days > upper_bound[-30:]) | 
+            (last_30_days < lower_bound[-30:])
+        ])
+        
+        # Önemli anomali tarihlerini bul (en yüksek 5 pozitif ve negatif)
+        top_anomalies = returns[returns > upper_bound].nlargest(5)
+        bottom_anomalies = returns[returns < lower_bound].nsmallest(5)
+        
+        # Anomali istatistikleri
+        stats = {
+            'positive_count': len(anomalies_high),
+            'negative_count': len(anomalies_low),
+            'positive_mean': anomalies_high.mean() if len(anomalies_high) > 0 else 0,
+            'negative_mean': anomalies_low.mean() if len(anomalies_low) > 0 else 0,
+            'recent_anomalies': recent_anomalies,
+            'important_dates': pd.concat([top_anomalies, bottom_anomalies]).sort_values(ascending=False)
+        }
+        
+        return stats
 
 def format_anomaly_report(stats):
     """Anomali raporunu formatlar"""
@@ -667,21 +668,31 @@ def analyze_index_correlation(df, bist100_data):
         - Beta Katsayısı: {beta:.2f}
         
         **📈 Olası Senaryolar:**
-        - BIST100 Yükselirse: %{abs(correlation)*100:.1f} olasılıkla {direction} yönde hareket
-        - BIST100 Düşerse: %{abs(correlation)*100:.1f} olasılıkla {direction} yönde hareket
+        - BIST100 Yükselirse: %{abs(correlation)*100:.1f} olasılıkla {direction.lower()} yönde hareket
+        - BIST100 Düşerse: %{abs(correlation)*100:.1f} olasılıkla {direction.lower()} yönde hareket
         
         **💡 Yorum:**
         - {'Hisse, piyasa ile güçlü bir ilişki gösteriyor' if abs(correlation) > 0.7 else
           'Hisse, piyasa ile orta düzeyde ilişkili' if abs(correlation) > 0.4 else
           'Hisse, piyasadan bağımsız hareket ediyor'}
-        - {'Hisse piyasadan daha oynak' if beta > 1 else 'Hisse piyasadan daha az oynak'} (Beta: {beta:.2f})
+        - {'Hisse piyasadan daha oynak (riskli)' if beta > 1 else 
+          'Hisse piyasa ile benzer oynaklıkta' if 0.9 <= beta <= 1.1 else 
+          'Hisse piyasadan daha az oynak (daha istikrarlı)'} (Beta: {beta:.2f})
+        
+        **📊 Yatırım Stratejisi:**
+        - {'Piyasa yönlü stratejiler etkili olabilir' if abs(correlation) > 0.6 else
+          'Karma stratejiler düşünülebilir' if abs(correlation) > 0.3 else
+          'Bağımsız stratejiler tercih edilebilir'}
+        - {'Stop-loss seviyeleri daha geniş tutulmalı' if beta > 1.2 else
+          'Normal stop-loss seviyeleri kullanılabilir' if 0.8 <= beta <= 1.2 else
+          'Dar stop-loss seviyeleri yeterli olabilir'}
         """
         
         return analysis_text
         
     except Exception as e:
-        st.error(f"Endeks korelasyonu analizi hatası: {str(e)}")
-        return "Endeks korelasyonu analizi yapılamadı. Veri kalitesini kontrol edin."
+        st.error(f"BIST100 korelasyon analizi hatası: {str(e)}")
+        return "BIST100 korelasyon analizi yapılamadı. Veri kalitesini kontrol edin."
 
 def detect_patterns(df):
     """Teknik analiz örüntülerini tespit eder"""
@@ -1615,24 +1626,20 @@ def main():
                                     # İstatistiksel analiz yap
                                     stats_results = perform_statistical_analysis(df)
                                     
-                                    # Tahminleri yap
-                                    predictions = {
-                                        'Tahmin Edilen Kapanış': 0.0,
-                                        'Değişim': 0.0,
-                                        'Açıklama': ''
-                                    }
+                                    # BIST100 analizi ve tahminler
+                                    predictions = {}
                                     
                                     # BIST100 analizi (eğer seçenek aktif ve veri yüklendiyse)
                                     if use_bist100 and bist100_data is not None:
                                         # Korelasyon analizi
-                                        correlation_analysis = analyze_index_correlation(df, bist100_data)
-                                        predictions['BIST100 Analizi'] = correlation_analysis
+                                        bist_analysis = analyze_index_correlation(df, bist100_data)
+                                        predictions['BIST100 Analizi'] = bist_analysis
                                         
-                                        # Tahminleri güncelle
-                                        predictions = predict_next_day(df, bist100_data)
+                                        # BIST100 ile tahmin
+                                        predictions.update(predict_next_day(df, bist100_data))
                                     else:
-                                        # BIST100 olmadan tahmin yap
-                                        predictions = predict_next_day(df, None)
+                                        # BIST100 olmadan tahmin
+                                        predictions.update(predict_next_day(df, None))
                                     
                                     if predictions:
                                         # Kapsamlı rapor oluştur
