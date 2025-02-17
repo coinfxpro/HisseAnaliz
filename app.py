@@ -27,55 +27,40 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 
 # Fonksiyon tanımlamaları
-def prepare_data(df):
+def prepare_data(df_or_file):
     """Veriyi analiz için hazırlar"""
     try:
-        # Sütun isimlerini standardize et
-        column_mapping = {
-            'Volume': 'volume',
-            'Close': 'close',
-            'Open': 'open',
-            'High': 'high',
-            'Low': 'low',
-            'Date': 'date',
-            'Time': 'time',
-            'VOLUME': 'volume',
-            'CLOSE': 'close',
-            'OPEN': 'open',
-            'HIGH': 'high',
-            'LOW': 'low'
-        }
-        
+        # Eğer bir dosya nesnesi ise, önce DataFrame'e çevir
+        if not isinstance(df_or_file, pd.DataFrame):
+            df = pd.read_csv(df_or_file)
+        else:
+            df = df_or_file
+            
         # Sütun isimlerini küçük harfe çevir
         df.columns = df.columns.str.lower()
         
-        # Eşleşen sütun isimlerini değiştir
-        df = df.rename(columns=column_mapping)
-        
-        # Tarih sütunu düzenleme
+        # Tarih sütununu indeks yap
         if 'date' in df.columns:
             df['date'] = pd.to_datetime(df['date'])
             df.set_index('date', inplace=True)
-        elif 'time' in df.columns:
-            df['time'] = pd.to_datetime(df['time'])
-            df.set_index('time', inplace=True)
-            
+        
         # Gerekli sütunların varlığını kontrol et
-        required_columns = ['close', 'volume']
-        for col in required_columns:
-            if col not in df.columns:
-                raise ValueError(f"Gerekli sütun eksik: {col}")
+        required_columns = ['open', 'high', 'low', 'close', 'volume']
+        if not all(col in df.columns for col in required_columns):
+            st.error("CSV dosyasında gerekli sütunlar eksik. Gerekli sütunlar: " + ", ".join(required_columns))
+            return None
         
         # Günlük getiriyi hesapla
         df['Daily_Return'] = df['close'].pct_change() * 100
         
-        # NaN değerleri temizle
-        df = df.dropna()
+        # Teknik göstergeleri hesapla
+        df = calculate_technical_indicators(df)
         
         return df
         
     except Exception as e:
-        raise Exception(f"Veri hazırlama hatası: {str(e)}")
+        st.error(f"Veri hazırlama hatası: {str(e)}")
+        return None
 
 def generate_risk_analysis(risk_metrics):
     """Risk metriklerini yorumlar ve açıklar"""
@@ -1547,48 +1532,49 @@ main_container = st.container()
 
 def main():
     try:
-        st.title("📈 Hisse Senedi Analiz ve Tahmin")
-        
-        uploaded_file = st.file_uploader("CSV dosyası yükleyin", type=['csv'])
-        
-        if uploaded_file is not None:
-            # Veriyi oku ve hazırla
-            df = prepare_data(uploaded_file)
+        with main_container:
+            st.title("📈 Hisse Senedi Analiz ve Tahmin")
             
-            if df is not None:
-                # BIST100 verilerini çek
-                start_date = df.index[0]
-                end_date = df.index[-1]
-                bist100_data = get_bist100_data(start_date, end_date)
+            uploaded_file = st.file_uploader("CSV dosyası yükleyin", type=['csv'])
+            
+            if uploaded_file is not None:
+                # Veriyi oku ve hazırla
+                df = prepare_data(uploaded_file)
                 
-                # Risk metriklerini hesapla
-                risk_metrics = calculate_risk_metrics(df)
-                
-                # İstatistiksel analiz yap
-                stats_results = perform_statistical_analysis(df)
-                
-                # Tahminleri yap
-                predictions = predict_next_day(df, bist100_data)
-                
-                if predictions:
-                    # Kapsamlı rapor oluştur
-                    content_col = st.container()
-                    create_comprehensive_report(
-                        uploaded_file.name.split('.')[0],
-                        df,
-                        generate_analysis_summary(df, predictions, risk_metrics, stats_results),
-                        risk_metrics,
-                        stats_results,
-                        predictions,
-                        content_col
-                    )
+                if df is not None:
+                    # BIST100 verilerini çek
+                    start_date = df.index[0]
+                    end_date = df.index[-1]
+                    bist100_data = get_bist100_data(start_date, end_date)
+                    
+                    # Risk metriklerini hesapla
+                    risk_metrics = calculate_risk_metrics(df)
+                    
+                    # İstatistiksel analiz yap
+                    stats_results = perform_statistical_analysis(df)
+                    
+                    # Tahminleri yap
+                    predictions = predict_next_day(df, bist100_data)
+                    
+                    if predictions:
+                        # Kapsamlı rapor oluştur
+                        content_col = st.container()
+                        create_comprehensive_report(
+                            uploaded_file.name.split('.')[0],
+                            df,
+                            generate_analysis_summary(df, predictions, risk_metrics, stats_results),
+                            risk_metrics,
+                            stats_results,
+                            predictions,
+                            content_col
+                        )
+                    else:
+                        st.error("Tahmin yapılamadı. Veri kalitesini kontrol edin.")
                 else:
-                    st.error("Tahmin yapılamadı. Veri kalitesini kontrol edin.")
+                    st.error("Veri hazırlama hatası. CSV dosyasını kontrol edin.")
             else:
-                st.error("Veri hazırlama hatası. CSV dosyasını kontrol edin.")
-        else:
-            st.info("Lütfen bir CSV dosyası yükleyin.")
-            
+                st.info("Lütfen bir CSV dosyası yükleyin.")
+                
     except Exception as e:
         st.error(f"Uygulama hatası: {str(e)}")
 
