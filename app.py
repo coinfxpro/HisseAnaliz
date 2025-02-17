@@ -406,79 +406,94 @@ def perform_statistical_analysis(df):
             'Fiyat Trendi': 'Belirsiz'
         }
 
-def predict_next_day_values(df, index_data=None):
-    """Gelecek gün tahminlerini hesaplar"""
+def predict_next_day(df, index_data=None):
+    """Hacim ve endeks bazlı tahmin yapar"""
     try:
-        # Feature'ları hazırla
-        df['MA5'] = df['close'].rolling(window=5).mean()
-        df['MA20'] = df['close'].rolling(window=20).mean()
-        df['RSI'] = calculate_rsi(df['close'])
-        df['Volume_Ratio'] = df['volume'] / df['volume'].rolling(window=20).mean()
+        # Son günün verileri
+        current_price = df['close'].iloc[-1]
+        current_volume = df['volume'].iloc[-1]
+        avg_volume = df['volume'].tail(20).mean()
+        volume_ratio = current_volume / avg_volume
         
-        # NaN değerleri temizle
-        df = df.dropna()
+        # BIST100 korelasyonu
+        if index_data is not None and isinstance(index_data, pd.DataFrame):
+            correlation = df['Daily_Return'].corr(index_data['Daily_Return'])
+            bist_momentum = index_data['close'].pct_change().iloc[-1]
+        else:
+            correlation = 0
+            bist_momentum = 0
         
-        # Feature'ları ve hedef değişkeni ayarla
-        features = ['close', 'volume', 'MA5', 'MA20', 'RSI', 'Volume_Ratio']
-        X = df[features].values
-        y_close = df['close'].values
+        # Teknik göstergeler
+        rsi = df['RSI'].iloc[-1] if 'RSI' in df.columns else 50
+        macd = df['MACD'].iloc[-1] if 'MACD' in df.columns else 0
+        signal = df['Signal'].iloc[-1] if 'Signal' in df.columns else 0
         
-        # Veriyi ölçeklendir
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
+        # Örüntü analizi
+        _, patterns = detect_patterns(df)
+        pattern_signal = 0
+        for pattern, direction, _ in patterns:
+            if direction == "Yükseliş":
+                pattern_signal += 1
+            elif direction == "Düşüş":
+                pattern_signal -= 1
         
-        # Train-test split
-        X_train = X_scaled[:-1]
-        X_test = X_scaled[-1:]
-        y_train = y_close[:-1]
+        # Tahmin faktörleri
+        volume_factor = 0.3 if volume_ratio > 1.5 else -0.2 if volume_ratio < 0.5 else 0
+        rsi_factor = -0.2 if rsi > 70 else 0.2 if rsi < 30 else 0
+        macd_factor = 0.2 if macd > signal else -0.2
+        pattern_factor = 0.1 * pattern_signal
+        bist_factor = correlation * bist_momentum if index_data is not None else 0
         
-        # Model eğitimi
-        model = RandomForestRegressor(n_estimators=100, random_state=42)
-        model.fit(X_train, y_train)
+        # Toplam etki
+        total_factor = volume_factor + rsi_factor + macd_factor + pattern_factor + bist_factor
         
-        # Tahmin
-        next_day_pred = model.predict(X_test)[0]
+        # Beklenen değişim
+        expected_change = total_factor * 100  # Yüzde olarak
         
-        # Hacim senaryosuna göre tahmin ayarlaması
-        volume_multiplier = 1.0
-        if df['volume'].iloc[-1] > df['volume'].rolling(window=20).mean().iloc[-1] * 2:
-            volume_multiplier = 1.2
-        elif df['volume'].iloc[-1] < df['volume'].rolling(window=20).mean().iloc[-1] * 0.5:
-            volume_multiplier = 0.8
-
-        # Endeks korelasyonuna göre tahmin ayarlaması
-        correlation_multiplier = 1.0
-        if index_data is not None:
-            index_returns = index_data['Daily_Return']
-            correlation = df['Daily_Return'].corr(index_returns)
-            if abs(correlation) > 0.4:
-                if correlation > 0:
-                    correlation_multiplier = 1.1
-                else:
-                    correlation_multiplier = 0.9
-
-        # Nihai tahmin
-        adjusted_prediction = next_day_pred * volume_multiplier * correlation_multiplier
+        # Tahmin edilen fiyat
+        predicted_price = current_price * (1 + expected_change/100)
         
-        predictions = {
-            'Tahmin Edilen Kapanış': adjusted_prediction,
-            'Son Kapanış': df['close'].iloc[-1],
-            'Değişim': (adjusted_prediction - df['close'].iloc[-1]) / df['close'].iloc[-1] * 100,
-            'Hacim Senaryosu': 'Yüksek Hacim' if df['volume'].iloc[-1] > df['volume'].rolling(window=20).mean().iloc[-1] * 2 else 'Normal Hacim' if df['volume'].iloc[-1] > df['volume'].rolling(window=20).mean().iloc[-1] * 0.5 else 'Düşük Hacim',
-            'Endeks Korelasyonu': correlation if index_data is not None else None
-        }
+        # Tahmin güven seviyesi
+        confidence = abs(total_factor)
+        confidence_level = (
+            'Yüksek' if confidence > 0.5 else
+            'Orta' if confidence > 0.2 else
+            'Düşük'
+        )
         
-        return predictions
-
-    except Exception as e:
-        st.error(f"Tahmin hesaplanırken bir hata oluştu: {str(e)}")
+        prediction_text = f"""
+        **🔮 Yarın İçin Tahmin**
+        
+        **📊 Tahmin Faktörleri:**
+        - Hacim Etkisi: {'Pozitif' if volume_factor > 0 else 'Negatif' if volume_factor < 0 else 'Nötr'}
+        - Teknik Gösterge Etkisi: {'Pozitif' if (rsi_factor + macd_factor) > 0 else 'Negatif' if (rsi_factor + macd_factor) < 0 else 'Nötr'}
+        - Örüntü Etkisi: {'Pozitif' if pattern_factor > 0 else 'Negatif' if pattern_factor < 0 else 'Nötr'}
+        {f'- BIST100 Etkisi: {"Pozitif" if bist_factor > 0 else "Negatif" if bist_factor < 0 else "Nötr"}' if index_data is not None else ''}
+        
+        **📈 Beklenen Değişim:**
+        - Yön: {'Yükseliş' if expected_change > 0 else 'Düşüş'}
+        - Oran: %{expected_change:.2f}
+        - Hedef Fiyat: ₺{predicted_price:.2f}
+        
+        **💡 Güven Seviyesi:** {confidence_level}
+        - {'Yüksek güvenilirlik, güçlü sinyaller' if confidence > 0.5 else
+           'Orta düzey güvenilirlik, dikkatli takip' if confidence > 0.2 else
+           'Düşük güvenilirlik, ek analiz önerilir'}
+        
+        ⚠️ Not: Bu tahmin, geçmiş veriler ve teknik göstergeler baz alınarak yapılmıştır.
+        Piyasa koşulları ve beklenmedik gelişmeler tahminleri etkileyebilir.
+        """
+        
         return {
-            'Tahmin Edilen Kapanış': df['close'].iloc[-1] * 1.001,
-            'Son Kapanış': df['close'].iloc[-1],
-            'Değişim': 0.1,
-            'Hacim Senaryosu': None,
-            'Endeks Korelasyonu': None
+            'Tahmin Edilen Kapanış': predicted_price,
+            'Değişim': expected_change,
+            'Güven Seviyesi': confidence_level,
+            'Açıklama': prediction_text
         }
+        
+    except Exception as e:
+        st.error(f"Tahmin hatası: {str(e)}")
+        return None
 
 def generate_alternative_scenarios(df, predictions):
     """Alternatif senaryolar oluşturur"""
@@ -1426,7 +1441,7 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         
         **⚠️ Not:** 
         - Bu tahminler teknik analiz ve istatistiksel modellere dayanmaktadır
-        - Piyasa koşullarına göre sapma gösterebilir
+        - Piyasa koşulları ve beklenmedik gelişmeler tahminleri etkileyebilir
         - Önemli bir haber akışı durumunda tahminler geçerliliğini yitirebilir
         """)
 
