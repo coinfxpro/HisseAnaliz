@@ -341,23 +341,52 @@ def detect_anomalies(df, window=20, std_dev=2):
             'important_dates': pd.concat([top_anomalies, bottom_anomalies]).sort_values(ascending=False)
         }
         
-        return stats
+        return format_anomaly_report(stats)
+        
+    except Exception as e:
+        st.error(f"Anomali analizi hatası: {str(e)}")
+        return "Anomali analizi yapılamadı. Veri kalitesini kontrol edin."
 
 def format_anomaly_report(stats):
     """Anomali raporunu formatlar"""
-    report = []
-    
-    # Genel istatistikler
-    report.append(f"Pozitif Anomaliler: {stats['positive_count']} adet (Ortalama: %{stats['positive_mean']:.2f})")
-    report.append(f"Negatif Anomaliler: {stats['negative_count']} adet (Ortalama: %{stats['negative_mean']:.2f})")
-    report.append(f"Son 30 Günde: {stats['recent_anomalies']} adet")
-    
-    # Önemli tarihler
-    report.append("🔍 Önemli Anomali Tarihleri:")
-    for date, value in stats['important_dates'].head().items():
-        report.append(f"- {date.strftime('%d/%m/%Y')}: %{value:.2f}")
-    
-    return "\n".join(report)
+    try:
+        analysis_text = """
+        **🔍 Anomali Analizi**
+        
+        **📈 Pozitif Anomaliler:**
+        - Toplam Sayı: {pos_count}
+        - Ortalama Büyüklük: %{pos_mean:.2f}
+        
+        **📉 Negatif Anomaliler:**
+        - Toplam Sayı: {neg_count}
+        - Ortalama Büyüklük: %{neg_mean:.2f}
+        
+        **⚠️ Son 30 Gün:**
+        - Anomali Sayısı: {recent}
+        - Durum: {recent_status}
+        
+        **💡 Yorum:**
+        - {anomaly_comment}
+        - {recent_comment}
+        """.format(
+            pos_count=stats['positive_count'],
+            pos_mean=stats['positive_mean'],
+            neg_count=stats['negative_count'],
+            neg_mean=stats['negative_mean'],
+            recent=stats['recent_anomalies'],
+            recent_status='Yüksek Anomali Aktivitesi' if stats['recent_anomalies'] > 3 else 'Normal Aktivite',
+            anomaly_comment='Pozitif anomaliler baskın' if stats['positive_count'] > stats['negative_count'] else
+                          'Negatif anomaliler baskın' if stats['positive_count'] < stats['negative_count'] else
+                          'Dengeli anomali dağılımı',
+            recent_comment='Son dönemde artan anomali aktivitesi' if stats['recent_anomalies'] > 3 else
+                         'Son dönemde normal anomali aktivitesi'
+        )
+        
+        return analysis_text
+        
+    except Exception as e:
+        st.error(f"Anomali raporu formatlanırken hata: {str(e)}")
+        return "Anomali raporu oluşturulamadı."
 
 def perform_statistical_analysis(df):
     """İstatistiksel analiz yapar"""
@@ -594,6 +623,8 @@ def analyze_volume_scenarios(df):
         
         analysis_text = f"""
         **📊 Hacim Analizi**
+        
+        **📊 Hacim Durumu:**
         - Güncel Hacim: {current_volume:,.0f}
         - 30 Günlük Ortalama: {avg_volume:,.0f}
         - Hacim/Ortalama Oranı: {volume_ratio:.2f}x
@@ -661,6 +692,8 @@ def analyze_index_correlation(df, bist100_data):
         
         analysis_text = f"""
         **🔄 BIST100 Korelasyon Analizi**
+        
+        **📊 Korelasyon:**
         - Genel Korelasyon: {correlation:.2f}
         - Son {len(last_30_dates)} Gün Korelasyonu: {recent_correlation:.2f}
         - Korelasyon Gücü: {strength}
