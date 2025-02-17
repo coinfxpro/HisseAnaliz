@@ -1182,7 +1182,7 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         # Mevsimsellik analizi
         try:
             decomposition = seasonal_decompose(df['close'], period=30, model='additive')
-            seasonal_pattern = decomposition.seasonal[-30:]  # Son 30 günlük mevsimsel pattern
+            seasonal_pattern = decomposition.seasonal[-1]
             seasonal_strength = np.std(decomposition.seasonal) / np.std(decomposition.resid)
             has_seasonality = seasonal_strength > 0.1
             
@@ -1532,51 +1532,127 @@ main_container = st.container()
 
 def main():
     try:
-        with main_container:
-            st.title("📈 Hisse Senedi Analiz ve Tahmin")
+        # Başlık
+        st.title("📊 Hisse Senedi Analiz Platformu")
+        st.markdown("""
+        Bu uygulama ile hisse senetleri için detaylı teknik ve istatistiksel analizler yapabilirsiniz.
+        """)
+        
+        # Yan panel ve ana içerik için sütunlar
+        sidebar, main_content = st.columns([1, 3])
+        
+        with sidebar:
+            st.header("📈 Analiz Parametreleri")
             
+            # Dosya yükleme
             uploaded_file = st.file_uploader("CSV dosyası yükleyin", type=['csv'])
             
             if uploaded_file is not None:
-                # Veriyi oku ve hazırla
-                df = prepare_data(uploaded_file)
-                
-                if df is not None:
-                    # BIST100 verilerini çek
-                    start_date = df.index[0]
-                    end_date = df.index[-1]
-                    bist100_data = get_bist100_data(start_date, end_date)
+                try:
+                    # CSV dosyasını oku
+                    df = pd.read_csv(uploaded_file)
                     
-                    # Risk metriklerini hesapla
-                    risk_metrics = calculate_risk_metrics(df)
+                    # Veriyi hazırla
+                    df = prepare_data(df)
                     
-                    # İstatistiksel analiz yap
-                    stats_results = perform_statistical_analysis(df)
-                    
-                    # Tahminleri yap
-                    predictions = predict_next_day(df, bist100_data)
-                    
-                    if predictions:
-                        # Kapsamlı rapor oluştur
-                        content_col = st.container()
-                        create_comprehensive_report(
-                            uploaded_file.name.split('.')[0],
-                            df,
-                            generate_analysis_summary(df, predictions, risk_metrics, stats_results),
-                            risk_metrics,
-                            stats_results,
-                            predictions,
-                            content_col
-                        )
+                    if df is not None:
+                        # Hisse adı
+                        hisse_adi = uploaded_file.name.split('.')[0].upper()
+                        st.success(f"✅ {hisse_adi} verisi başarıyla yüklendi")
+                        
+                        # BIST100 verilerini çek
+                        start_date = df.index[0]
+                        end_date = df.index[-1]
+                        with st.spinner('BIST100 verisi alınıyor...'):
+                            bist100_data = get_bist100_data(start_date, end_date)
+                        
+                        # Analiz butonu
+                        if st.button("🔄 Analiz Et"):
+                            with st.spinner('Analiz yapılıyor...'):
+                                try:
+                                    # Risk metriklerini hesapla
+                                    risk_metrics = calculate_risk_metrics(df)
+                                    
+                                    # İstatistiksel analiz yap
+                                    stats_results = perform_statistical_analysis(df)
+                                    
+                                    # Tahminleri yap
+                                    predictions = predict_next_day(df, bist100_data)
+                                    
+                                    if predictions:
+                                        # Kapsamlı rapor oluştur
+                                        with main_content:
+                                            create_comprehensive_report(
+                                                hisse_adi,
+                                                df,
+                                                generate_analysis_summary(df, predictions, risk_metrics, stats_results),
+                                                risk_metrics,
+                                                stats_results,
+                                                predictions,
+                                                st.container()
+                                            )
+                                    else:
+                                        st.error("❌ Tahmin yapılamadı. Veri kalitesini kontrol edin.")
+                                        
+                                except Exception as e:
+                                    st.error(f"❌ Analiz hatası: {str(e)}")
                     else:
-                        st.error("Tahmin yapılamadı. Veri kalitesini kontrol edin.")
-                else:
-                    st.error("Veri hazırlama hatası. CSV dosyasını kontrol edin.")
+                        st.error("❌ Veri hazırlama hatası. CSV dosyasını kontrol edin.")
+                        
+                except Exception as e:
+                    st.error(f"❌ Dosya okuma hatası: {str(e)}")
             else:
-                st.info("Lütfen bir CSV dosyası yükleyin.")
+                st.info("ℹ️ Lütfen bir CSV dosyası yükleyin.")
+                
+        # Ana içerik alanı
+        with main_content:
+            if uploaded_file is None:
+                st.markdown("""
+                ### 👋 Hoş Geldiniz!
+                
+                **📊 Hisse Senedi Analiz Platformu**'na hoş geldiniz. 
+                
+                #### 🚀 Özellikler:
+                - ✨ Detaylı Teknik Analiz
+                - 📈 Risk Metrikleri
+                - 🔄 BIST100 Korelasyonu
+                - 🎯 Fiyat Tahminleri
+                - 📊 Kapsamlı Raporlama
+                
+                #### 📝 Nasıl Kullanılır:
+                1. Sol panelden CSV dosyanızı yükleyin
+                2. "Analiz Et" butonuna tıklayın
+                3. Detaylı analiz sonuçlarını inceleyin
+                
+                #### 📋 CSV Formatı:
+                Dosyanızda şu sütunlar bulunmalıdır:
+                - date: Tarih
+                - open: Açılış fiyatı
+                - high: En yüksek fiyat
+                - low: En düşük fiyat
+                - close: Kapanış fiyatı
+                - volume: İşlem hacmi
+                """)
                 
     except Exception as e:
-        st.error(f"Uygulama hatası: {str(e)}")
+        st.error(f"❌ Uygulama hatası: {str(e)}")
 
 if __name__ == "__main__":
     main()
+
+def get_bist100_data(start_date, end_date):
+    """BIST100 verilerini çeker"""
+    try:
+        # BIST100 verisini çek
+        bist = yf.download('^XU100', start=start_date, end=end_date)
+        
+        # Günlük getiriyi hesapla
+        bist['Daily_Return'] = bist['Close'].pct_change() * 100
+        
+        # Sütun isimlerini küçük harfe çevir
+        bist.columns = bist.columns.str.lower()
+        
+        return bist
+    except Exception as e:
+        st.error(f"BIST100 verisi çekme hatası: {str(e)}")
+        return None
