@@ -77,6 +77,113 @@ def prepare_data(df):
     except Exception as e:
         raise Exception(f"Veri hazırlama hatası: {str(e)}")
 
+def generate_risk_analysis(risk_metrics):
+    """Risk metriklerini yorumlar ve açıklar"""
+    volatility = risk_metrics['Volatilite (%)']
+    var = risk_metrics['VaR_95 (%)']
+    sharpe = risk_metrics['Sharpe Oranı']
+    drawdown = risk_metrics['Max Drawdown (%)']
+    
+    risk_text = f"""
+    **⚠️ Risk Analizi Yorumu**
+    
+    **📊 Oynaklık (Volatilite): %{volatility:.2f}**
+    - {'Çok Yüksek' if volatility > 4 else 'Yüksek' if volatility > 3 else 'Orta' if volatility > 2 else 'Düşük'} seviyede oynaklık
+    - {
+        'Fiyatta ani değişimler görülebilir, dikkatli olunmalı' if volatility > 4 else
+        'Fiyat hareketleri ortalamadan daha oynak' if volatility > 3 else
+        'Normal piyasa koşullarında beklenen oynaklık' if volatility > 2 else
+        'Fiyat hareketleri nispeten sakin'
+    }
+    
+    **💰 Riske Maruz Değer (VaR): %{var:.2f}**
+    - Günlük maksimum kayıp riski (95% güven aralığında)
+    - {
+        'Çok yüksek risk seviyesi, dikkatli pozisyon alınmalı' if var < -5 else
+        'Yüksek risk seviyesi, risk yönetimi önemli' if var < -3 else
+        'Orta risk seviyesi, normal piyasa koşulları' if var < -2 else
+        'Düşük risk seviyesi, görece güvenli'
+    }
+    
+    **📈 Sharpe Oranı: {sharpe:.2f}**
+    - {
+        'Mükemmel risk/getiri oranı' if sharpe > 2 else
+        'İyi risk/getiri oranı' if sharpe > 1 else
+        'Ortalama risk/getiri oranı' if sharpe > 0 else
+        'Risksiz getirinin altında performans'
+    }
+    - {
+        'Yatırım için çok uygun' if sharpe > 2 else
+        'Yatırım için uygun' if sharpe > 1 else
+        'Risk/getiri dengesi normal' if sharpe > 0 else
+        'Risk/getiri dengesi zayıf'
+    }
+    
+    **📉 Maksimum Düşüş: %{drawdown:.2f}**
+    - {
+        'Çok ciddi bir düşüş yaşanmış' if drawdown < -30 else
+        'Önemli bir düşüş yaşanmış' if drawdown < -20 else
+        'Normal sayılabilecek düşüş' if drawdown < -10 else
+        'Sınırlı düşüş yaşanmış'
+    }
+    - {
+        'Toparlanma uzun sürebilir, dikkatli olunmalı' if drawdown < -30 else
+        'Toparlanma süreci takip edilmeli' if drawdown < -20 else
+        'Normal piyasa koşullarında beklenen düşüş' if drawdown < -10 else
+        'Güçlü fiyat istikrarı'
+    }
+    """
+    return risk_text
+
+def generate_statistical_analysis(stats_results):
+    """İstatistiksel analiz sonuçlarını yorumlar"""
+    mean_return = stats_results['Ortalama Getiri']
+    std_dev = stats_results['Standart Sapma']
+    skewness = stats_results['Çarpıklık']
+    rsi = stats_results['RSI']
+    macd = stats_results['MACD']
+    signal = stats_results['Signal']
+    
+    stats_text = f"""
+    **📊 İstatistiksel Analiz Yorumu**
+    
+    **📈 Getiri Analizi:**
+    - Ortalama Günlük Getiri: %{mean_return:.2f}
+    - {
+        'Çok güçlü pozitif getiri trendi' if mean_return > 1 else
+        'Pozitif getiri trendi' if mean_return > 0.5 else
+        'Hafif pozitif trend' if mean_return > 0 else
+        'Negatif getiri trendi'
+    }
+    
+    **🎯 Dağılım Analizi:**
+    - Standart Sapma: %{std_dev:.2f}
+    - Çarpıklık: {skewness:.2f}
+    - {
+        'Pozitif getiriler daha yaygın' if skewness > 0.5 else
+        'Negatif getiriler daha yaygın' if skewness < -0.5 else
+        'Dengeli getiri dağılımı'
+    }
+    
+    **📊 Teknik Göstergeler:**
+    - RSI: {rsi:.2f}
+    - {
+        'Aşırı alım bölgesi, düzeltme gelebilir' if rsi > 70 else
+        'Aşırı satım bölgesi, yükseliş gelebilir' if rsi < 30 else
+        'Normal bölgede, trend devam edebilir'
+    }
+    
+    - MACD: {macd:.2f}
+    - Sinyal: {signal:.2f}
+    - {
+        'Güçlü alım sinyali' if macd > signal and macd > 0 else
+        'Zayıf alım sinyali' if macd > signal and macd <= 0 else
+        'Güçlü satış sinyali' if macd < signal and macd < 0 else
+        'Zayıf satış sinyali'
+    }
+    """
+    return stats_text
+
 def calculate_technical_indicators(df):
     # Temel hesaplamalar
     df['Daily_Return'] = df['close'].pct_change() * 100
@@ -678,77 +785,75 @@ def detect_anomalies(df, window=20, std_dev=2):
 def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
     """Analiz özetini ve yorumları oluşturur"""
     try:
+        # Son fiyat ve değişim
+        current_price = df['close'].iloc[-1]
+        price_change = df['Daily_Return'].iloc[-1] * 100
+        
         # Trend analizi
+        short_trend = df['close'].tail(5).mean() > df['close'].tail(20).mean()
+        long_trend = df['close'].tail(20).mean() > df['close'].tail(50).mean()
+        
+        # RSI ve MACD durumu
         rsi = stats_results['RSI']
         macd = stats_results['MACD']
         signal = stats_results['Signal']
-        price_trend = stats_results['Fiyat Trendi']
         
-        # RSI yorumu
-        if rsi > 70:
-            rsi_comment = "Aşırı Alım"
-        elif rsi < 30:
-            rsi_comment = "Aşırı Satım"
-        else:
-            rsi_comment = "Normal"
-            
-        # MACD yorumu
-        if macd > signal:
-            macd_signal = "AL"
-        elif macd < signal:
-            macd_signal = "SAT"
-        else:
-            macd_signal = "BEKLE"
-            
-        # Bollinger durumu
-        upper_band = df['Upper_Band'].iloc[-1] if 'Upper_Band' in df.columns else df['close'].iloc[-1] * 1.02
-        lower_band = df['Lower_Band'].iloc[-1] if 'Lower_Band' in df.columns else df['close'].iloc[-1] * 0.98
-        current_price = df['close'].iloc[-1]
+        # Tahmin yönü
+        prediction_direction = "Yükseliş" if predictions['Değişim'] > 0 else "Düşüş"
         
-        if current_price > upper_band:
-            bollinger = "Üst Band Üzerinde (Aşırı Alım)"
-        elif current_price < lower_band:
-            bollinger = "Alt Band Altında (Aşırı Satım)"
-        else:
-            bollinger = "Bandlar Arasında (Normal)"
-            
-        # Risk durumu
-        volatility = risk_metrics['Volatilite (%)']
-        if volatility > 30:
-            risk = "YÜKSEK"
-        elif volatility > 15:
-            risk = "ORTA"
-        else:
-            risk = "DÜŞÜK"
-            
-        # Özet metin
-        summary = f"""
-        **Teknik Göstergeler:**
-        - RSI Durumu: {rsi_comment} ({rsi:.1f})
-        - MACD Sinyali: {macd_signal}
-        - Bollinger Durumu: {bollinger}
+        summary_text = f"""
+        **🎯 Genel Görünüm ve Öneriler**
         
-        **Trend Analizi:**
-        - Genel Trend: {price_trend}
-        - Son Kapanış: ₺{df['close'].iloc[-1]:.2f}
-        - Değişim: %{df['Daily_Return'].iloc[-1]:.2f}
+        **📊 Mevcut Durum:**
+        - Güncel Fiyat: ₺{current_price:.2f}
+        - Günlük Değişim: %{price_change:.2f}
+        - {
+            'Güçlü yükseliş trendi' if short_trend and long_trend else
+            'Kısa vadeli yükseliş, uzun vadeli düşüş' if short_trend else
+            'Kısa vadeli düşüş, uzun vadeli yükseliş' if long_trend else
+            'Düşüş trendi'
+        }
         
-        **Risk Değerlendirmesi:**
-        - Risk Seviyesi: {risk}
-        - Volatilite: %{volatility:.2f}
-        - Stop Loss: ₺{risk_metrics['Stop Loss']:.2f}
-        - Take Profit: ₺{risk_metrics['Take Profit']:.2f}
+        **🔮 Teknik Görünüm:**
+        - RSI Durumu: {
+            'Aşırı alım bölgesinde' if rsi > 70 else
+            'Aşırı satım bölgesinde' if rsi < 30 else
+            'Normal bölgede'
+        }
+        - MACD Sinyali: {
+            'Güçlü alım' if macd > signal and macd > 0 else
+            'Zayıf alım' if macd > signal else
+            'Güçlü satış' if macd < signal and macd < 0 else
+            'Zayıf satış'
+        }
         
-        **Yarınki Tahmin:**
-        - Beklenen Fiyat: ₺{predictions['Tahmin Edilen Kapanış']:.2f}
+        **📈 Tahmin ve Beklentiler:**
+        - Beklenen Yön: {prediction_direction}
+        - Hedef Fiyat: ₺{predictions['Tahmin Edilen Kapanış']:.2f}
         - Beklenen Değişim: %{predictions['Değişim']:.2f}
+        
+        **💡 Öneriler:**
+        - {
+            'Kısa vadeli kar realizasyonu düşünülebilir' if rsi > 70 and price_change > 2 else
+            'Alım için uygun seviyeler' if rsi < 30 and price_change < -2 else
+            'Mevcut pozisyonlar korunabilir' if 30 <= rsi <= 70 else
+            'Temkinli yaklaşılmalı'
+        }
+        - {
+            'Stop-loss seviyeleri yukarı çekilebilir' if short_trend and long_trend else
+            'Yeni alımlar için düşüşler beklenebilir' if not short_trend and long_trend else
+            'Kademeli alım stratejisi izlenebilir' if short_trend and not long_trend else
+            'Risk yönetimine dikkat edilmeli'
+        }
+        
+        ⚠️ Not: Bu analizler sadece bilgilendirme amaçlıdır ve kesin alım-satım önerisi içermez.
         """
         
-        return summary
+        return summary_text
         
     except Exception as e:
-        st.error(f"Özet oluşturma hatası: {str(e)}")
-        return "Analiz özeti oluşturulamadı. Lütfen verileri kontrol edin."
+        st.error(f"Analiz özeti oluşturma hatası: {str(e)}")
+        return "Analiz özeti oluşturulamadı. Veri kalitesini kontrol edin."
 
 def create_candlestick_chart(df):
     # Mum grafiği
@@ -894,6 +999,8 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
                 st.write(f"- Maximum Drawdown: %{risk_metrics['Max Drawdown (%)']:.2f}")
                 st.write(f"- Ani Yükseliş Riski: %{risk_metrics['Ani Yükseliş Riski (%)']:.2f}")
                 st.write(f"- Ani Düşüş Riski: %{risk_metrics['Ani Düşüş Riski (%)']:.2f}")
+            risk_analysis = generate_risk_analysis(risk_metrics)
+            st.write(risk_analysis)
             
             # İstatistiksel analiz
             st.subheader("📊 İstatistiksel Analiz")
@@ -908,9 +1015,13 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
                 st.write(f"- RSI: {stats_results['RSI']:.2f}")
                 st.write(f"- MACD: {stats_results['MACD']:.2f}")
                 st.write(f"- Signal: {stats_results['Signal']:.2f}")
+            stats_analysis = generate_statistical_analysis(stats_results)
+            st.write(stats_analysis)
             
             # Genel görünüm ve öneriler
             st.subheader("🎯 Genel Görünüm ve Öneriler")
+            st.write(summary)
+            summary = generate_analysis_summary(df, predictions, risk_metrics, stats_results)
             st.write(summary)
             
             # Uyarı notu
@@ -1333,7 +1444,9 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         - Piyasa koşullarına göre sapma gösterebilir
         - Önemli bir haber akışı durumunda tahminler geçerliliğini yitirebilir
         """)
-        
+
+
+
 def generate_technical_analysis(df):
     # Teknik analiz sonuçları
     technical_summary = {
