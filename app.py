@@ -963,7 +963,7 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
                 st.metric("Son Kapanış", 
                          f"₺{df['close'].iloc[-1]:.2f}", 
                          f"%{daily_return:.2f}",
-                         delta_color="normal")  # normal kullanarak pozitif/negatif rengini otomatik belirler
+                         delta_color="inverse")  # normal kullanarak pozitif/negatif rengini otomatik belirler
             with col2:
                 volume_change = ((df['volume'].iloc[-1] / df['volume'].iloc[-2]) - 1) * 100
                 st.metric("Günlük Hacim", 
@@ -989,7 +989,7 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
             
             # Örüntü analizi
             st.subheader("📈 Teknik Örüntüler")
-            oruntu_analizi, _ = detect_patterns(df)
+            oruntu_analizi = detect_patterns(df)
             st.write(oruntu_analizi)
             
             # Anomali analizi
