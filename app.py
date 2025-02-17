@@ -502,25 +502,45 @@ def analyze_volume_scenarios(df):
 def analyze_index_correlation(df, bist100_data):
     """BIST100 ile korelasyon analizi yapar"""
     try:
-        # Getirileri hesapla
-        df_returns = df['Daily_Return']
-        bist_returns = bist100_data['Daily_Return']
+        # Veri kontrolü
+        if bist100_data is None or bist100_data.empty or 'Daily_Return' not in bist100_data.columns:
+            return "BIST100 verisi bulunamadı veya eksik. Korelasyon analizi yapılamadı."
+            
+        # Tarihleri indeks olarak ayarla
+        df.index = pd.to_datetime(df.index)
+        bist100_data.index = pd.to_datetime(bist100_data.index)
+        
+        # Ortak tarihleri bul
+        common_dates = df.index.intersection(bist100_data.index)
+        if len(common_dates) == 0:
+            return "Hisse ve BIST100 verileri arasında ortak tarih bulunamadı."
+            
+        # Ortak tarihlere göre verileri filtrele
+        df_returns = df.loc[common_dates, 'Daily_Return']
+        bist_returns = bist100_data.loc[common_dates, 'Daily_Return']
         
         # Korelasyon hesapla
         correlation = df_returns.corr(bist_returns)
-        recent_correlation = df_returns.tail(30).corr(bist_returns.tail(30))
+        
+        # Son 30 gün için korelasyon
+        last_30_dates = common_dates[-30:] if len(common_dates) >= 30 else common_dates
+        recent_correlation = df_returns.loc[last_30_dates].corr(bist_returns.loc[last_30_dates])
         
         # Korelasyon gücü ve yönü
         strength = 'Güçlü' if abs(correlation) > 0.7 else 'Orta' if abs(correlation) > 0.4 else 'Zayıf'
         direction = 'Pozitif' if correlation > 0 else 'Negatif'
         
         # Beta hesapla
-        beta = np.cov(df_returns, bist_returns)[0][1] / np.var(bist_returns)
+        cov_matrix = np.cov(df_returns, bist_returns)
+        if len(cov_matrix) > 1:
+            beta = cov_matrix[0][1] / np.var(bist_returns)
+        else:
+            beta = 0
         
         analysis_text = f"""
         **🔄 BIST100 Korelasyon Analizi**
         - Genel Korelasyon: {correlation:.2f}
-        - Son 30 Gün Korelasyonu: {recent_correlation:.2f}
+        - Son {len(last_30_dates)} Gün Korelasyonu: {recent_correlation:.2f}
         - Korelasyon Gücü: {strength}
         - Korelasyon Yönü: {direction}
         - Beta Katsayısı: {beta:.2f}
@@ -533,8 +553,7 @@ def analyze_index_correlation(df, bist100_data):
         - {'Hisse, piyasa ile güçlü bir ilişki gösteriyor' if abs(correlation) > 0.7 else
           'Hisse, piyasa ile orta düzeyde ilişkili' if abs(correlation) > 0.4 else
           'Hisse, piyasadan bağımsız hareket ediyor'}
-        - Beta {beta:.2f} > 1 ise hisse piyasadan daha oynak
-        - Beta {beta:.2f} < 1 ise hisse piyasadan daha az oynak
+        - {'Hisse piyasadan daha oynak' if beta > 1 else 'Hisse piyasadan daha az oynak'} (Beta: {beta:.2f})
         """
         
         return analysis_text
@@ -1550,25 +1569,45 @@ def analyze_volume_scenarios(df):
 def analyze_index_correlation(df, bist100_data):
     """BIST100 ile korelasyon analizi yapar"""
     try:
-        # Getirileri hesapla
-        df_returns = df['Daily_Return']
-        bist_returns = bist100_data['Daily_Return']
+        # Veri kontrolü
+        if bist100_data is None or bist100_data.empty or 'Daily_Return' not in bist100_data.columns:
+            return "BIST100 verisi bulunamadı veya eksik. Korelasyon analizi yapılamadı."
+            
+        # Tarihleri indeks olarak ayarla
+        df.index = pd.to_datetime(df.index)
+        bist100_data.index = pd.to_datetime(bist100_data.index)
+        
+        # Ortak tarihleri bul
+        common_dates = df.index.intersection(bist100_data.index)
+        if len(common_dates) == 0:
+            return "Hisse ve BIST100 verileri arasında ortak tarih bulunamadı."
+            
+        # Ortak tarihlere göre verileri filtrele
+        df_returns = df.loc[common_dates, 'Daily_Return']
+        bist_returns = bist100_data.loc[common_dates, 'Daily_Return']
         
         # Korelasyon hesapla
         correlation = df_returns.corr(bist_returns)
-        recent_correlation = df_returns.tail(30).corr(bist_returns.tail(30))
+        
+        # Son 30 gün için korelasyon
+        last_30_dates = common_dates[-30:] if len(common_dates) >= 30 else common_dates
+        recent_correlation = df_returns.loc[last_30_dates].corr(bist_returns.loc[last_30_dates])
         
         # Korelasyon gücü ve yönü
         strength = 'Güçlü' if abs(correlation) > 0.7 else 'Orta' if abs(correlation) > 0.4 else 'Zayıf'
         direction = 'Pozitif' if correlation > 0 else 'Negatif'
         
         # Beta hesapla
-        beta = np.cov(df_returns, bist_returns)[0][1] / np.var(bist_returns)
+        cov_matrix = np.cov(df_returns, bist_returns)
+        if len(cov_matrix) > 1:
+            beta = cov_matrix[0][1] / np.var(bist_returns)
+        else:
+            beta = 0
         
         analysis_text = f"""
         **🔄 BIST100 Korelasyon Analizi**
         - Genel Korelasyon: {correlation:.2f}
-        - Son 30 Gün Korelasyonu: {recent_correlation:.2f}
+        - Son {len(last_30_dates)} Gün Korelasyonu: {recent_correlation:.2f}
         - Korelasyon Gücü: {strength}
         - Korelasyon Yönü: {direction}
         - Beta Katsayısı: {beta:.2f}
@@ -1581,8 +1620,7 @@ def analyze_index_correlation(df, bist100_data):
         - {'Hisse, piyasa ile güçlü bir ilişki gösteriyor' if abs(correlation) > 0.7 else
           'Hisse, piyasa ile orta düzeyde ilişkili' if abs(correlation) > 0.4 else
           'Hisse, piyasadan bağımsız hareket ediyor'}
-        - Beta {beta:.2f} > 1 ise hisse piyasadan daha oynak
-        - Beta {beta:.2f} < 1 ise hisse piyasadan daha az oynak
+        - {'Hisse piyasadan daha oynak' if beta > 1 else 'Hisse piyasadan daha az oynak'} (Beta: {beta:.2f})
         """
         
         return analysis_text
