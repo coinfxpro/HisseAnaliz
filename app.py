@@ -1226,107 +1226,93 @@ def create_pdf_report(hisse_adi, df, summary, risk_metrics, stats_results, predi
     except Exception as e:
         st.error(f"PDF raporu oluşturulurken bir hata oluştu: {str(e)}")
 
-# Streamlit sayfa yapılandırması
-st.set_page_config(
-    page_title="Hisse Senedi Analizi",
-    page_icon="📈",
-    layout="wide"
-)
+# Streamlit uygulaması
+st.set_page_config(page_title="Hisse Senedi Analizi", page_icon="📈", layout="wide")
 
-# Yan menü
-menu_col, content_col = st.columns([1, 4])  # Sol menü için 1 birim, ana içerik için 4 birim genişlik
+# Ana container
+main_container = st.container()
 
-# Yan menü
-with menu_col:
-    st.header("📈 Analiz Parametreleri")
-    
-    # Hisse senedi seçimi
-    hisse_adi = st.text_input("Hisse Adı (örn: THYAO):", "").upper()
-    
-    # CSV dosyası yükleme
-    uploaded_file = st.file_uploader("CSV Dosyası Yükle", type=['csv'])
-    
-    if uploaded_file is not None:
-        # Analiz türü seçimi
-        st.subheader("📊 Analiz Türü Seçimi")
-        analiz_turu = st.radio(
-            "Hangi tür analiz yapmak istersiniz?",
-            ["Kapsamlı Rapor Hazırla", 
-             "Teknik Analiz Yap",
-             "Veri ve İstatistiksel Analiz Yap"]
-        )
-
-# Ana içerik
-with content_col:
-    # Başlık ve açıklama
+with main_container:
+    # Başlık
     st.title("📊 Hisse Senedi Analiz Platformu")
     st.markdown("""
     Bu uygulama ile hisse senetleri için detaylı teknik ve istatistiksel analizler yapabilirsiniz.
     """)
     
-    # Rapor hazırlama butonu ve sonuçlar
-    if 'uploaded_file' in locals() and uploaded_file is not None:
-        if st.button("🚀 Raporu Hazırla", key="main_button"):
-            if not uploaded_file.name.startswith(hisse_adi):
-                st.error(f"Lütfen {hisse_adi} ile başlayan bir CSV dosyası yükleyin!")
-            else:
-                try:
-                    # CSV dosyasını oku
+    # Yan panel ve ana içerik için sütunlar
+    sidebar = st.sidebar
+    content_col = st.container()
+    
+    with sidebar:
+        st.header("Analiz Parametreleri")
+        
+        # Dosya yükleme
+        uploaded_file = st.file_uploader("CSV veya Excel dosyası yükleyin", type=['csv', 'xlsx'])
+        
+        if uploaded_file is not None:
+            try:
+                # Dosya uzantısına göre okuma
+                if uploaded_file.name.endswith('.csv'):
                     df = pd.read_csv(uploaded_file)
-                    
-                    # Tarih sütununu düzenle
-                    df['time'] = pd.to_datetime(df['time'], unit='s')
-                    df.set_index('time', inplace=True)
-                    
-                    # Sütun isimlerini düzelt - hepsi küçük harf
-                    df.columns = ['open', 'high', 'low', 'close', 'volume']
-                    
-                    # Günlük getiriyi hesapla
-                    df['Daily_Return'] = df['close'].pct_change()
-                    
-                    # Temel hesaplamalar
-                    df = calculate_technical_indicators(df)
-                    
+                else:
+                    df = pd.read_excel(uploaded_file)
+                
+                # Tarih sütununu düzenleme
+                if 'date' in df.columns:
+                    df['date'] = pd.to_datetime(df['date'])
+                    df.set_index('date', inplace=True)
+                
+                # Veri hazırlığı
+                df = calculate_technical_indicators(df)
+                
+                # Hisse adı
+                hisse_adi = st.text_input("Hisse Adı", "HISSE")
+                
+                # BIST100 verisi
+                bist100_data = None
+                use_bist = st.checkbox("BIST100 ile Karşılaştır", value=True)
+                if use_bist:
                     try:
-                        # Risk metrikleri ve tahminler her rapor türü için hesaplanır
-                        risk_metrics = calculate_risk_metrics(df)
-                        predictions = predict_next_day_values(df)
-                        
-                        if analiz_turu == "Kapsamlı Rapor Hazırla":
-                            try:
-                                # Tüm analizleri yap
-                                stats_results = perform_statistical_analysis(df)
-                                pattern_results = analyze_statistical_patterns(df)
-                                scenarios = generate_alternative_scenarios(df, predictions)
-                                volume_analysis = analyze_volume_scenarios(df)
-                                summary = generate_analysis_summary(df, predictions, risk_metrics, stats_results)
-                                
-                                # Kapsamlı rapor oluştur
-                                create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, content_col)
-                            except Exception as e:
-                                st.error(f"Kapsamlı rapor oluşturulurken bir hata oluştu: {str(e)}")
-                            
-                        elif analiz_turu == "Teknik Analiz Yap":
-                            try:
-                                # Sadece teknik analiz yap
-                                technical_summary = generate_technical_analysis(df)
-                                create_technical_report(hisse_adi, df, technical_summary, risk_metrics, predictions, content_col)
-                            except Exception as e:
-                                st.error(f"Teknik analiz oluşturulurken bir hata oluştu: {str(e)}")
-                            
-                        else:  # Veri ve İstatistiksel Analiz
-                            try:
-                                # İstatistiksel analiz ve örüntü analizi
-                                stats_results = perform_statistical_analysis(df)
-                                pattern_results = analyze_statistical_patterns(df)
-                                seasonality_analysis = perform_seasonality_analysis(df)
-                                create_statistical_report(hisse_adi, df, stats_results, predictions, content_col)
-                            except Exception as e:
-                                st.error(f"İstatistiksel analiz oluşturulurken bir hata oluştu: {str(e)}")
-                        
-                        st.success("✅ Rapor başarıyla oluşturuldu!")
-                        
+                        bist100_data = yf.download("XU100.IS", 
+                                                 start=(df.index[0] - pd.Timedelta(days=1)).strftime('%Y-%m-%d'),
+                                                 end=(df.index[-1] + pd.Timedelta(days=1)).strftime('%Y-%m-%d'))
+                        bist100_data['Daily_Return'] = bist100_data['Close'].pct_change() * 100
                     except Exception as e:
-                        st.error(f"Bir hata oluştu: {str(e)}")
-                except Exception as e:
-                    st.error(f"CSV dosyası okunurken bir hata oluştu: {str(e)}")
+                        st.warning("BIST100 verisi alınamadı. Endeks karşılaştırması yapılmayacak.")
+                        bist100_data = None
+                
+                # Analiz butonu
+                if st.button("Analiz Et"):
+                    with st.spinner('Analiz yapılıyor...'):
+                        try:
+                            # Risk metrikleri hesaplama
+                            risk_metrics = calculate_risk_metrics(df)
+                            
+                            # Tahminler
+                            predictions = predict_next_day_values(df, bist100_data)
+                            
+                            # İstatistiksel analiz
+                            stats_results = perform_statistical_analysis(df)
+                            
+                            # Hacim analizi
+                            volume_analysis = analyze_volume_scenarios(df)
+                            
+                            # Endeks korelasyonu
+                            if bist100_data is not None:
+                                index_correlation = analyze_index_correlation(df, bist100_data)
+                                predictions['Endeks Korelasyonu'] = index_correlation
+                            
+                            # Özet oluşturma
+                            summary = generate_analysis_summary(df, predictions, risk_metrics, stats_results)
+                            
+                            # Rapor oluşturma
+                            create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, content_col)
+                            
+                        except Exception as e:
+                            st.error(f"Analiz sırasında bir hata oluştu: {str(e)}")
+                
+            except Exception as e:
+                st.error(f"Dosya okuma hatası: {str(e)}")
+        
+        else:
+            st.info("Lütfen bir dosya yükleyin.")
