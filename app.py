@@ -742,111 +742,109 @@ def calculate_fibonacci_levels(high, low):
     return levels
 
 def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_results, predictions, content_col):
-    with content_col:  # Ana içerik sütununda göster
-        st.header(f"📊 {hisse_adi} Kapsamlı Analiz Raporu")
-        
-        # 1. ÖZET
-        st.subheader("1. ÖZET GÖRÜNÜM")
-        st.info(summary['Genel Görünüm'])
-        
-        # Metrikler
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Trend", summary['Trend'])
-        with col2:
-            st.metric("RSI Durumu", summary['RSI Durumu'])
-        with col3:
-            st.metric("Risk Durumu", summary['Risk Durumu'])
+    """Kapsamlı analiz raporu oluşturur"""
+    try:
+        with content_col:
+            # Ana metrikler
+            st.header(f"📊 {hisse_adi} Analiz Raporu")
             
-        # 2. HACİM ANALİZİ
-        st.subheader("2. HACİM ANALİZİ")
-        if 'Hacim Senaryosu' in predictions and predictions['Hacim Senaryosu'] is not None:
-            hacim = predictions['Hacim Senaryosu']
-            st.write(f"**Mevcut Durum:** {hacim['active_scenario']}")
-            st.write(f"**Açıklama:** {hacim['scenario_details']['description']}")
-            st.write(f"**Beklenen Etki:** {hacim['scenario_details']['impact']}")
-            
-            # Hacim Metrikleri
+            # Fiyat ve hacim bilgileri
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Güncel Hacim", f"{hacim['current_volume']:,.0f}")
+                st.metric("Son Kapanış", f"₺{df['close'].iloc[-1]:.2f}", 
+                         f"%{df['Daily_Return'].iloc[-1]:.2f}")
             with col2:
-                st.metric("Ortalama Hacim", f"{hacim['average_volume']:,.0f}")
+                st.metric("Günlük Hacim", f"{df['volume'].iloc[-1]:,.0f}",
+                         f"%{((df['volume'].iloc[-1] / df['volume'].iloc[-2]) - 1) * 100:.2f}")
             with col3:
-                st.metric("Hacim Oranı", f"{hacim['volume_ratio']:.2f}x")
-
-        # 3. ENDEKS KORELASYONU
-        st.subheader("3. ENDEKS KORELASYONU")
-        if 'Endeks Korelasyonu' in predictions and predictions['Endeks Korelasyonu'] is not None:
-            korelasyon = predictions['Endeks Korelasyonu']
-            st.write(f"**Korelasyon Gücü:** {korelasyon['strength']}")
-            st.write(f"**Korelasyon Yönü:** {korelasyon['direction']}")
+                st.metric("Tahmin", 
+                         f"₺{predictions['Tahmin Edilen Kapanış']:.2f}",
+                         f"%{predictions['Değişim']:.2f}")
             
-            # Korelasyon Metrikleri
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Genel Korelasyon", f"{korelasyon['correlation']:.2f}")
-            with col2:
-                st.metric("Son 30 Gün Korelasyon", f"{korelasyon['recent_correlation']:.2f}")
+            # Risk metrikleri
+            st.subheader("📉 Risk Analizi")
+            risk_col1, risk_col2 = st.columns(2)
             
-            # Endeks Senaryoları
-            st.write("**Endeks Senaryoları:**")
-            for senaryo, detay in korelasyon['scenarios'].items():
-                st.write(f"- {senaryo}: %{detay['probability']*100:.1f} olasılıkla {detay['expected_movement']}")
-
-        # 4. RİSK METRİKLERİ
-        st.subheader("4. RİSK METRİKLERİ")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Volatilite", f"%{risk_metrics['Volatilite (%)']:.2f}")
-        with col2:
-            st.metric("VaR (%95)", f"%{abs(risk_metrics['VaR_95 (%)']):.2f}")
-        with col3:
-            st.metric("Max Drawdown", f"%{abs(risk_metrics['Max Drawdown (%)']):.2f}")
+            with risk_col1:
+                st.write("**Temel Risk Metrikleri:**")
+                st.write(f"- Volatilite: %{risk_metrics['Volatilite (%)']:.2f}")
+                st.write(f"- VaR (95): %{risk_metrics['VaR_95 (%)']:.2f}")
+                st.write(f"- Sharpe Oranı: {risk_metrics['Sharpe Oranı']:.2f}")
+                
+            with risk_col2:
+                st.write("**İleri Risk Metrikleri:**")
+                st.write(f"- Maximum Drawdown: %{risk_metrics['Max Drawdown (%)']:.2f}")
+                st.write(f"- Ani Yükseliş Riski: %{risk_metrics['Ani Yükseliş Riski (%)']:.2f}")
+                st.write(f"- Ani Düşüş Riski: %{risk_metrics['Ani Düşüş Riski (%)']:.2f}")
             
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Ani Yükseliş Riski", f"%{risk_metrics['Ani Yükseliş Riski (%)']:.2f}")
-        with col2:
-            st.metric("Ani Düşüş Riski", f"%{risk_metrics['Ani Düşüş Riski (%)']:.2f}")
-        with col3:
-            st.metric("Sharpe Oranı", f"{risk_metrics['Sharpe Oranı']:.2f}")
-
-        # 5. TAHMİNLER
-        st.subheader("5. YARIN İÇİN TAHMİNLER")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Mevcut Fiyat", f"₺{predictions['Son Kapanış']:.2f}")
-        with col2:
-            st.metric("Tahmin Edilen Fiyat", 
-                     f"₺{predictions['Tahmin Edilen Kapanış']:.2f}",
-                     f"%{predictions['Değişim']:.2f}")
+            # Hacim analizi
+            st.subheader("📊 Hacim Analizi")
+            if 'Hacim Senaryosu' in predictions:
+                st.write(predictions['Hacim Senaryosu'])
             
-        # Stop Loss ve Kar Al seviyeleri
-        if 'Stop Loss' in risk_metrics and 'Take Profit' in risk_metrics:
-            st.write("**Önerilen Seviyeler:**")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Stop Loss", f"₺{risk_metrics['Stop Loss']:.2f}")
-            with col2:
-                st.metric("Kar Al", f"₺{risk_metrics['Take Profit']:.2f}")
+            # Endeks korelasyonu
+            if 'Endeks Korelasyonu' in predictions:
+                st.subheader("🔄 BIST100 Korelasyonu")
+                st.write(predictions['Endeks Korelasyonu'])
+            
+            # İstatistiksel analiz
+            st.subheader("📈 İstatistiksel Analiz")
+            stats_col1, stats_col2 = st.columns(2)
+            
+            with stats_col1:
+                st.write("**Temel İstatistikler:**")
+                st.write(f"- Ortalama Getiri: %{stats_results['Ortalama Getiri']:.2f}")
+                st.write(f"- Standart Sapma: %{stats_results['Standart Sapma']:.2f}")
+                st.write(f"- Çarpıklık: {stats_results['Çarpıklık']:.2f}")
+                
+            with stats_col2:
+                st.write("**Trend Göstergeleri:**")
+                st.write(f"- RSI: {stats_results['RSI']:.2f}")
+                st.write(f"- MACD: {stats_results['MACD']:.2f}")
+                st.write(f"- Signal: {stats_results['Signal']:.2f}")
+            
+            # Genel görünüm ve öneriler
+            st.subheader("🎯 Genel Görünüm ve Öneriler")
+            
+            # Alım-satım seviyeleri
+            level_col1, level_col2 = st.columns(2)
+            with level_col1:
+                st.write("**Önerilen İşlem Seviyeleri:**")
+                st.write(f"- Stop Loss: ₺{risk_metrics['Stop Loss']:.2f}")
+                st.write(f"- Take Profit: ₺{risk_metrics['Take Profit']:.2f}")
+                
+            with level_col2:
+                st.write("**İşlem Önerisi:**")
+                current_rsi = stats_results['RSI']
+                current_price = df['close'].iloc[-1]
+                
+                # İşlem önerisi oluştur
+                if current_rsi > 70:
+                    st.error("⛔ AŞIRI ALIM - Satış Fırsatı")
+                elif current_rsi < 30:
+                    st.success("💹 AŞIRI SATIM - Alım Fırsatı")
+                else:
+                    if predictions['Değişim'] > 0 and stats_results['MACD'] > stats_results['Signal']:
+                        st.success("✅ AL")
+                    elif predictions['Değişim'] < 0 and stats_results['MACD'] < stats_results['Signal']:
+                        st.error("⛔ SAT")
+                    else:
+                        st.warning("⚠️ TUT")
+            
+            # Özet ve notlar
+            st.subheader("📝 Özet ve Önemli Notlar")
+            st.write(summary)
+            
+            # Uyarı notu
+            st.warning("""
+            ⚠️ **Önemli Not:** Bu analiz sadece bilgilendirme amaçlıdır ve kesin alım-satım önerisi içermez. 
+            Yatırım kararlarınızı verirken profesyonel destek almanız önerilir.
+            """)
+            
+    except Exception as e:
+        st.error(f"Rapor oluşturma hatası: {str(e)}")
+        raise Exception(f"Rapor oluşturma hatası: {str(e)}")
 
-        # 6. TEKNİK GÖSTERGELER
-        st.subheader("6. TEKNİK GÖSTERGELER")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("RSI", f"{df['RSI'].iloc[-1]:.1f}")
-        with col2:
-            st.metric("MACD Sinyali", summary['MACD Sinyali'])
-        with col3:
-            st.metric("Bollinger", summary['Bollinger'])
-
-        # Grafikler
-        st.subheader("7. GRAFİKLER")
-        create_candlestick_chart(df)
-        create_volume_chart(df)
-        create_technical_charts(df)
-        
 def create_technical_report(hisse_adi, df, technical_summary, risk_metrics, predictions, content_col):
     with content_col:  # Ana içerik sütununda göster
         st.header("Teknik Analiz Raporu")
