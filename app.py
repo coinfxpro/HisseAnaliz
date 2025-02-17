@@ -503,9 +503,12 @@ def analyze_index_correlation(df, bist100_data):
     """BIST100 ile korelasyon analizi yapar"""
     try:
         # Veri kontrolü
-        if bist100_data is None or bist100_data.empty or 'Daily_Return' not in bist100_data.columns:
-            return "BIST100 verisi bulunamadı veya eksik. Korelasyon analizi yapılamadı."
+        if bist100_data is None or not isinstance(bist100_data, pd.DataFrame):
+            return "BIST100 verisi bulunamadı veya yanlış formatta. Korelasyon analizi yapılamadı."
             
+        if 'Daily_Return' not in bist100_data.columns:
+            return "BIST100 verisinde günlük getiri (Daily_Return) sütunu bulunamadı."  
+        
         # Tarihleri indeks olarak ayarla
         df.index = pd.to_datetime(df.index)
         bist100_data.index = pd.to_datetime(bist100_data.index)
@@ -513,11 +516,14 @@ def analyze_index_correlation(df, bist100_data):
         # Ortak tarihleri bul
         common_dates = df.index.intersection(bist100_data.index)
         if len(common_dates) == 0:
-            return "Hisse ve BIST100 verileri arasında ortak tarih bulunamadı."
-            
+            return "Hisse ve BIST100 verileri arasında ortak tarih bulunamadı."   
+        
         # Ortak tarihlere göre verileri filtrele
         df_returns = df.loc[common_dates, 'Daily_Return']
         bist_returns = bist100_data.loc[common_dates, 'Daily_Return']
+        
+        if len(df_returns) < 2 or len(bist_returns) < 2:
+            return "Korelasyon analizi için yeterli veri yok. En az 2 ortak tarih gerekli."
         
         # Korelasyon hesapla
         correlation = df_returns.corr(bist_returns)
@@ -531,11 +537,15 @@ def analyze_index_correlation(df, bist100_data):
         direction = 'Pozitif' if correlation > 0 else 'Negatif'
         
         # Beta hesapla
-        cov_matrix = np.cov(df_returns, bist_returns)
-        if len(cov_matrix) > 1:
-            beta = cov_matrix[0][1] / np.var(bist_returns)
-        else:
+        try:
+            cov_matrix = np.cov(df_returns, bist_returns)
+            if len(cov_matrix) > 1:
+                beta = cov_matrix[0][1] / np.var(bist_returns)
+            else:
+                beta = 0
+        except:
             beta = 0
+            st.warning("Beta hesaplanamadı, varsayılan değer 0 kullanılıyor.")
         
         analysis_text = f"""
         **🔄 BIST100 Korelasyon Analizi**
