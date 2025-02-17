@@ -27,6 +27,56 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 
 # Fonksiyon tanımlamaları
+def prepare_data(df):
+    """Veriyi analiz için hazırlar"""
+    try:
+        # Sütun isimlerini standardize et
+        column_mapping = {
+            'Volume': 'volume',
+            'Close': 'close',
+            'Open': 'open',
+            'High': 'high',
+            'Low': 'low',
+            'Date': 'date',
+            'Time': 'time',
+            'VOLUME': 'volume',
+            'CLOSE': 'close',
+            'OPEN': 'open',
+            'HIGH': 'high',
+            'LOW': 'low'
+        }
+        
+        # Sütun isimlerini küçük harfe çevir
+        df.columns = df.columns.str.lower()
+        
+        # Eşleşen sütun isimlerini değiştir
+        df = df.rename(columns=column_mapping)
+        
+        # Tarih sütunu düzenleme
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
+            df.set_index('date', inplace=True)
+        elif 'time' in df.columns:
+            df['time'] = pd.to_datetime(df['time'])
+            df.set_index('time', inplace=True)
+            
+        # Gerekli sütunların varlığını kontrol et
+        required_columns = ['close', 'volume']
+        for col in required_columns:
+            if col not in df.columns:
+                raise ValueError(f"Gerekli sütun eksik: {col}")
+        
+        # Günlük getiriyi hesapla
+        df['Daily_Return'] = df['close'].pct_change() * 100
+        
+        # NaN değerleri temizle
+        df = df.dropna()
+        
+        return df
+        
+    except Exception as e:
+        raise Exception(f"Veri hazırlama hatası: {str(e)}")
+
 def calculate_technical_indicators(df):
     # Temel hesaplamalar
     df['Daily_Return'] = df['close'].pct_change() * 100
@@ -1391,53 +1441,3 @@ with main_container:
         
         else:
             st.info("Lütfen bir dosya yükleyin.")
-
-def prepare_data(df):
-    """Veriyi analiz için hazırlar"""
-    try:
-        # Sütun isimlerini standardize et
-        column_mapping = {
-            'Volume': 'volume',
-            'Close': 'close',
-            'Open': 'open',
-            'High': 'high',
-            'Low': 'low',
-            'Date': 'date',
-            'Time': 'time',
-            'VOLUME': 'volume',
-            'CLOSE': 'close',
-            'OPEN': 'open',
-            'HIGH': 'high',
-            'LOW': 'low'
-        }
-        
-        # Sütun isimlerini küçük harfe çevir
-        df.columns = df.columns.str.lower()
-        
-        # Eşleşen sütun isimlerini değiştir
-        df = df.rename(columns=column_mapping)
-        
-        # Tarih sütunu düzenleme
-        if 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'])
-            df.set_index('date', inplace=True)
-        elif 'time' in df.columns:
-            df['time'] = pd.to_datetime(df['time'])
-            df.set_index('time', inplace=True)
-            
-        # Gerekli sütunların varlığını kontrol et
-        required_columns = ['close', 'volume']
-        for col in required_columns:
-            if col not in df.columns:
-                raise ValueError(f"Gerekli sütun eksik: {col}")
-        
-        # Günlük getiriyi hesapla
-        df['Daily_Return'] = df['close'].pct_change() * 100
-        
-        # NaN değerleri temizle
-        df = df.dropna()
-        
-        return df
-        
-    except Exception as e:
-        raise Exception(f"Veri hazırlama hatası: {str(e)}")
