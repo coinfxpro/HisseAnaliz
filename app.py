@@ -227,7 +227,7 @@ def detect_anomalies(df, window=20, std_dev=2):
     anomalies_high = returns[returns > upper_bound]
     anomalies_low = returns[returns < lower_bound]
     
-    # Son 30 gündeki anomaliler
+    # Son 30 günlük anomaliler
     last_30_days = returns[-30:]
     recent_anomalies = len(last_30_days[
         (last_30_days > upper_bound[-30:]) | 
@@ -267,44 +267,52 @@ def format_anomaly_report(stats):
     return "\n".join(report)
 
 def perform_statistical_analysis(df):
-    # Durağanlık testi (ADF)
-    adf_result = adfuller(df['close'].dropna())
-    
-    # Normallik testi
-    returns = df['Daily_Return'].dropna()
-    stat, p_value = stats.normaltest(returns)
-    
-    # Otokorelasyon
-    autocorr = returns.autocorr()
-    
-    # Çarpıklık ve Basıklık
-    skew = returns.skew()
-    kurtosis = returns.kurtosis()
-    
-    # ARIMA modeli
+    """İstatistiksel analiz yapar"""
     try:
-        model = ARIMA(df['close'], order=(1,1,1))
-        results = model.fit()
-        forecast = results.forecast(steps=1)[0]
-    except:
-        forecast = None
-    
-    # Mevsimsellik analizi
-    try:
-        seasonal_result = seasonal_decompose(df['close'], period=30)
-        seasonality = seasonal_result.seasonal[-1]
-    except:
-        seasonality = None
-    
-    return {
-        'ADF p-değeri': adf_result[1],
-        'Normallik p-değeri': p_value,
-        'Otokorelasyon': autocorr,
-        'Çarpıklık': skew,
-        'Basıklık': kurtosis,
-        'ARIMA Tahmini': forecast,
-        'Mevsimsellik': seasonality
-    }
+        # Temel istatistikler
+        returns = df['Daily_Return'].dropna()
+        mean_return = returns.mean()
+        std_dev = returns.std()
+        skewness = returns.skew()
+        
+        # Teknik göstergeler
+        rsi = df['RSI'].iloc[-1] if 'RSI' in df.columns else 50
+        macd = df['MACD'].iloc[-1] if 'MACD' in df.columns else 0
+        signal = df['Signal'].iloc[-1] if 'Signal' in df.columns else 0
+        
+        # Durağanlık testi
+        try:
+            adf_test = adfuller(df['close'].dropna())
+            adf_pvalue = adf_test[1]
+        except:
+            adf_pvalue = 1.0
+        
+        # Trend analizi
+        price_trend = 'Yükseliş' if df['close'].iloc[-1] > df['close'].iloc[-20] else 'Düşüş'
+        
+        return {
+            'Ortalama Getiri': mean_return,
+            'Standart Sapma': std_dev,
+            'Çarpıklık': skewness,
+            'RSI': rsi,
+            'MACD': macd,
+            'Signal': signal,
+            'ADF p-değeri': adf_pvalue,
+            'Fiyat Trendi': price_trend
+        }
+        
+    except Exception as e:
+        st.error(f"İstatistiksel analiz hatası: {str(e)}")
+        return {
+            'Ortalama Getiri': 0.0,
+            'Standart Sapma': 0.0,
+            'Çarpıklık': 0.0,
+            'RSI': 50.0,
+            'MACD': 0.0,
+            'Signal': 0.0,
+            'ADF p-değeri': 1.0,
+            'Fiyat Trendi': 'Belirsiz'
+        }
 
 def predict_next_day_values(df, index_data=None):
     """Gelecek gün tahminlerini hesaplar"""
@@ -551,13 +559,25 @@ def perform_statistical_analysis(df):
         macd = df['MACD'].iloc[-1] if 'MACD' in df.columns else 0
         signal = df['Signal'].iloc[-1] if 'Signal' in df.columns else 0
         
+        # Durağanlık testi
+        try:
+            adf_test = adfuller(df['close'].dropna())
+            adf_pvalue = adf_test[1]
+        except:
+            adf_pvalue = 1.0
+        
+        # Trend analizi
+        price_trend = 'Yükseliş' if df['close'].iloc[-1] > df['close'].iloc[-20] else 'Düşüş'
+        
         return {
             'Ortalama Getiri': mean_return,
             'Standart Sapma': std_dev,
             'Çarpıklık': skewness,
             'RSI': rsi,
             'MACD': macd,
-            'Signal': signal
+            'Signal': signal,
+            'ADF p-değeri': adf_pvalue,
+            'Fiyat Trendi': price_trend
         }
         
     except Exception as e:
@@ -568,148 +588,85 @@ def perform_statistical_analysis(df):
             'Çarpıklık': 0.0,
             'RSI': 50.0,
             'MACD': 0.0,
-            'Signal': 0.0
+            'Signal': 0.0,
+            'ADF p-değeri': 1.0,
+            'Fiyat Trendi': 'Belirsiz'
         }
 
 def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
-    """Analiz özetini ve yorumları oluşturur."""
-    
-    # Genel trend analizi
-    current_trend = "YÜKSELİŞ" if df['close'].iloc[-1] > df['MA20'].iloc[-1] > df['MA50'].iloc[-1] else \
-                   "YÜKSELİŞ" if df['close'].iloc[-1] > df['MA20'].iloc[-1] else \
-                   "DÜŞÜŞ" if df['close'].iloc[-1] < df['MA20'].iloc[-1] < df['MA50'].iloc[-1] else \
-                   "DÜŞÜŞ" if df['close'].iloc[-1] < df['MA20'].iloc[-1] else "YATAY"
-    
-    # RSI durumu
-    rsi_status = "AŞIRI ALIM 🔴" if df['RSI'].iloc[-1] > 70 else \
-                 "AŞIRI SATIM 🟢" if df['RSI'].iloc[-1] < 30 else \
-                 "NÖTR ⚪"
-    
-    # Volatilite durumu
-    volatility_status = "YÜKSEK ⚠️" if risk_metrics['Volatilite (%)'] > 0.3 else \
-                       "NORMAL ✅" if risk_metrics['Volatilite (%)'] > 0.15 else \
-                       "DÜŞÜK 💤"
-    
-    # Durağanlık durumu
-    stationarity = "DURAĞAN ✅" if stats_results['ADF p-değeri'] < 0.05 else "DURAĞAN DEĞİL ⚠️"
-    
-    # Hareketli ortalamalar
-    ma_status = {
-        "MA20": f"{'⬆️' if df['close'].iloc[-1] > df['MA20'].iloc[-1] else '⬇️'} {df['MA20'].iloc[-1]:.2f}",
-        "MA50": f"{'⬆️' if df['close'].iloc[-1] > df['MA50'].iloc[-1] else '⬇️'} {df['MA50'].iloc[-1]:.2f}",
-        "MA200": f"{'⬆️' if df['close'].iloc[-1] > df['MA200'].iloc[-1] else '⬇️'} {df['MA200'].iloc[-1]:.2f}"
-    }
-    
-    # MACD durumu
-    macd_signal = "AL 🟢" if df['MACD'].iloc[-1] > df['Signal_Line'].iloc[-1] else "SAT 🔴"
-    
-    # Bollinger durumu
-    if df['close'].iloc[-1] > df['BB_upper'].iloc[-1]:
-        bb_status = "AŞIRI ALINIM ⚠️"
-    elif df['close'].iloc[-1] < df['BB_lower'].iloc[-1]:
-        bb_status = "AŞIRI SATIM 🔔"
-    else:
-        bb_status = "NORMAL ✅"
-    
-    # Hacim analizi
-    volume_avg = df['volume'].mean()
-    current_volume = df['volume'].iloc[-1]
-    volume_status = "YÜKSEK 💪" if current_volume > volume_avg * 1.5 else \
-                   "DÜŞÜK 👎" if current_volume < volume_avg * 0.5 else \
-                   "NORMAL 👍"
-    
-    # Risk durumu
-    risk_status = "YÜKSEK RİSK ⚠️" if risk_metrics['Volatilite (%)'] > 0.3 or risk_metrics['VaR_95 (%)'] < -0.03 else \
-                 "ORTA RİSK ⚡" if risk_metrics['Volatilite (%)'] > 0.2 or risk_metrics['VaR_95 (%)'] < -0.02 else \
-                 "DÜŞÜK RİSK ✅"
-    
-    return {
-        'Genel Trend': f"{current_trend} {'📈' if current_trend == 'YÜKSELİŞ' else '📉' if current_trend == 'DÜŞÜŞ' else '↔️'}",
-        'RSI Durumu': f"{rsi_status} ({df['RSI'].iloc[-1]:.1f})",
-        'Volatilite': f"{volatility_status} ({risk_metrics['Volatilite (%)']:.1f}%)",
-        'Durağanlık': stationarity,
-        'MACD Sinyali': macd_signal,
-        'Bollinger': bb_status,
-        'Hacim Durumu': volume_status,
-        'Risk Durumu': risk_status,
-        'Teknik Göstergeler': ma_status,
-        'Tahmin': f"{'YÜKSELİŞ 📈' if predictions['Tahmin Edilen Kapanış'] > df['close'].iloc[-1] else 'DÜŞÜŞ 📉'} (₺{predictions['Tahmin Edilen Kapanış']:.2f})",
-        'Sharpe': f"{'MÜKEMMEL 🌟' if risk_metrics['Sharpe Oranı'] > 2 else 'İYİ ✅' if risk_metrics['Sharpe Oranı'] > 1 else 'ZAYIF ⚠️'}"
-    }
-
-def analyze_statistical_patterns(df):
-    # Zamansallık analizi
-    seasonal = seasonal_decompose(df['close'], period=30, model='additive')
-    has_seasonality = seasonal.seasonal.std() > df['close'].std() * 0.1
-    
-    # Otokorelasyon analizi
-    acf_values = acf(df['close'], nlags=30)
-    has_autocorrelation = any(abs(acf_values[1:]) > 0.2)  # İlk lag'i atlıyoruz
-    
-    # Trend analizi
-    z_score = (df['close'] - df['close'].rolling(window=20).mean()) / df['close'].rolling(window=20).std()
-    trend_strength = abs(z_score.mean())
-    
-    patterns = {
-        'Mevsimsellik': has_seasonality,
-        'Otokorelasyon': has_autocorrelation,
-        'Trend Gücü': trend_strength,
-        'Döngüsel Hareket': seasonal.seasonal.std() / df['close'].std()
-    }
-    
-    return patterns
-
-def analyze_correlation_matrix(corr_matrix):
-    correlations = []
-    
-    # Önemli korelasyonları analiz et
-    pairs = [
-        ('close', 'volume'),
-        ('close', 'RSI'),
-        ('volume', 'Daily_Return'),
-        ('RSI', 'Daily_Return')
-    ]
-    
-    for var1, var2 in pairs:
-        corr = corr_matrix.loc[var1, var2]
-        strength = (
-            "güçlü pozitif" if corr > 0.7
-            else "orta pozitif" if corr > 0.3
-            else "güçlü negatif" if corr < -0.7
-            else "orta negatif" if corr < -0.3
-            else "zayıf"
-        )
-        correlations.append({
-            'pair': f"{var1}-{var2}",
-            'correlation': corr,
-            'strength': strength,
-            'interpretation': interpret_correlation(var1, var2, corr)
-        })
-    
-    return correlations
-
-def interpret_correlation(var1, var2, corr):
-    if var1 == 'close' and var2 == 'volume':
-        if corr > 0.3:
-            return "Yüksek hacim fiyat artışını destekliyor"
-        elif corr < -0.3:
-            return "Yüksek hacim fiyat düşüşünü destekliyor"
+    """Analiz özetini ve yorumları oluşturur"""
+    try:
+        # Trend analizi
+        rsi = stats_results['RSI']
+        macd = stats_results['MACD']
+        signal = stats_results['Signal']
+        price_trend = stats_results['Fiyat Trendi']
+        
+        # RSI yorumu
+        if rsi > 70:
+            rsi_comment = "Aşırı Alım"
+        elif rsi < 30:
+            rsi_comment = "Aşırı Satım"
         else:
-            return "Hacim ve fiyat arasında belirgin bir ilişki yok"
-    
-    elif (var1 == 'close' and var2 == 'RSI') or (var1 == 'RSI' and var2 == 'close'):
-        if corr > 0.7:
-            return "Güçlü trend mevcut"
+            rsi_comment = "Normal"
+            
+        # MACD yorumu
+        if macd > signal:
+            macd_signal = "AL"
+        elif macd < signal:
+            macd_signal = "SAT"
         else:
-            return "Trend zayıf veya yatay hareket mevcut"
-    
-    elif var1 == 'volume' and var2 == 'Daily_Return':
-        if abs(corr) > 0.3:
-            return "Hacim, günlük getirilerle ilişkili"
+            macd_signal = "BEKLE"
+            
+        # Bollinger durumu
+        upper_band = df['Upper_Band'].iloc[-1] if 'Upper_Band' in df.columns else df['close'].iloc[-1] * 1.02
+        lower_band = df['Lower_Band'].iloc[-1] if 'Lower_Band' in df.columns else df['close'].iloc[-1] * 0.98
+        current_price = df['close'].iloc[-1]
+        
+        if current_price > upper_band:
+            bollinger = "Üst Band Üzerinde (Aşırı Alım)"
+        elif current_price < lower_band:
+            bollinger = "Alt Band Altında (Aşırı Satım)"
         else:
-            return "Hacim, günlük getirilerle ilişkili değil"
-    
-    return "Standart korelasyon ilişkisi"
+            bollinger = "Bandlar Arasında (Normal)"
+            
+        # Risk durumu
+        volatility = risk_metrics['Volatilite (%)']
+        if volatility > 30:
+            risk = "YÜKSEK"
+        elif volatility > 15:
+            risk = "ORTA"
+        else:
+            risk = "DÜŞÜK"
+            
+        # Özet metin
+        summary = f"""
+        **Teknik Göstergeler:**
+        - RSI Durumu: {rsi_comment} ({rsi:.1f})
+        - MACD Sinyali: {macd_signal}
+        - Bollinger Durumu: {bollinger}
+        
+        **Trend Analizi:**
+        - Genel Trend: {price_trend}
+        - Son Kapanış: ₺{df['close'].iloc[-1]:.2f}
+        - Değişim: %{df['Daily_Return'].iloc[-1]:.2f}
+        
+        **Risk Değerlendirmesi:**
+        - Risk Seviyesi: {risk}
+        - Volatilite: %{volatility:.2f}
+        - Stop Loss: ₺{risk_metrics['Stop Loss']:.2f}
+        - Take Profit: ₺{risk_metrics['Take Profit']:.2f}
+        
+        **Yarınki Tahmin:**
+        - Beklenen Fiyat: ₺{predictions['Tahmin Edilen Kapanış']:.2f}
+        - Beklenen Değişim: %{predictions['Değişim']:.2f}
+        """
+        
+        return summary
+        
+    except Exception as e:
+        st.error(f"Özet oluşturma hatası: {str(e)}")
+        return "Analiz özeti oluşturulamadı. Lütfen verileri kontrol edin."
 
 def create_candlestick_chart(df):
     # Mum grafiği
@@ -1067,7 +1024,7 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         
         # Mevsimsellik analizi
         try:
-            decomposition = seasonal_decompose(df['close'], period=30)
+            decomposition = seasonal_decompose(df['close'], period=30, model='additive')
             seasonal_pattern = decomposition.seasonal[-30:]  # Son 30 günlük mevsimsel pattern
             seasonal_strength = np.std(decomposition.seasonal) / np.std(decomposition.resid)
             has_seasonality = seasonal_strength > 0.1
@@ -1212,9 +1169,7 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         3. Yatırım Kalitesi: {'Yüksek' if sharpe > 1 else 'Orta' if sharpe > 0 else 'Düşük'}
         
         **🎯 Yatırım Stratejisi:**
-        1. {'💹 GÜÇLÜ AL' if mean_return > 0 and sharpe > 1 and rsi < 70 else
-            '✅ AL' if mean_return > 0 and sharpe > 0 and rsi < 70 else
-            '⛔ SAT' if mean_return < 0 and sharpe < 0 else '⚠️ TUT'}
+        1. {'💹 GÜÇLÜ AL' if mean_return > 0 and sharpe > 1 and rsi < 70 else '✅ AL' if mean_return > 0 and sharpe > 0 and rsi < 70 else '⛔ SAT' if mean_return < 0 and sharpe < 0 else '⚠️ TUT'}
         2. Stop-Loss: ₺{df['close'].iloc[-1] * (1 - abs(var_95/100)):.2f}
         3. Hedef Fiyat: ₺{predictions['Tahmin Edilen Kapanış']:.2f}
         
@@ -1327,7 +1282,7 @@ def generate_technical_analysis(df):
 
 def perform_seasonality_analysis(df):
     # Mevsimsellik analizi
-    seasonal_result = seasonal_decompose(df['close'], period=30)
+    seasonal_result = seasonal_decompose(df['close'], period=30, model='additive')
     seasonality = seasonal_result.seasonal[-1]
     return seasonality
 
