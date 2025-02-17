@@ -447,22 +447,25 @@ def analyze_volume_scenarios(df):
         current_volume = df['volume'].iloc[-1]
         volume_ratio = current_volume / avg_volume
         
-        # Hacim senaryoları
+        # Hacim senaryoları ve yorumları
         scenarios = {
             'Yüksek Hacim': {
                 'threshold': 1.5,
                 'description': 'Hacim ortalamanın çok üzerinde',
-                'impact': 'Güçlü fiyat hareketi beklenir'
+                'impact': 'Güçlü fiyat hareketi beklenir',
+                'interpretation': 'Yüksek hacim, piyasada güçlü bir ilgi olduğunu gösterir'
             },
             'Normal Hacim': {
                 'threshold': 0.75,
                 'description': 'Hacim normal seviyelerde',
-                'impact': 'Normal fiyat hareketi beklenir'
+                'impact': 'Normal fiyat hareketi beklenir',
+                'interpretation': 'Normal hacim, piyasanın dengeli olduğunu gösterir'
             },
             'Düşük Hacim': {
                 'threshold': 0,
                 'description': 'Hacim ortalamanın altında',
-                'impact': 'Zayıf fiyat hareketi beklenir'
+                'impact': 'Zayıf fiyat hareketi beklenir',
+                'interpretation': 'Düşük hacim, piyasada ilginin azaldığını gösterir'
             }
         }
         
@@ -473,27 +476,28 @@ def analyze_volume_scenarios(df):
                 active_scenario = scenario
                 break
         
-        return {
-            'current_volume': current_volume,
-            'average_volume': avg_volume,
-            'volume_ratio': volume_ratio,
-            'active_scenario': active_scenario,
-            'scenario_details': scenarios[active_scenario],
-            'description': f"""
-            **Hacim Analizi:**
-            - Güncel Hacim: {current_volume:,.0f}
-            - 30 Günlük Ortalama: {avg_volume:,.0f}
-            - Hacim/Ortalama Oranı: {volume_ratio:.2f}x
-            
-            **Senaryo: {active_scenario}**
-            - {scenarios[active_scenario]['description']}
-            - Beklenen Etki: {scenarios[active_scenario]['impact']}
-            """
-        }
+        # Hacim trendi
+        volume_trend = df['volume'].tail(5).mean() > df['volume'].tail(20).mean()
+        trend_text = "Yükseliş" if volume_trend else "Düşüş"
+        
+        analysis_text = f"""
+        **📊 Hacim Analizi**
+        - Güncel Hacim: {current_volume:,.0f}
+        - 30 Günlük Ortalama: {avg_volume:,.0f}
+        - Hacim/Ortalama Oranı: {volume_ratio:.2f}x
+        - Hacim Trendi: {trend_text}
+        
+        **🔍 Aktif Senaryo: {active_scenario}**
+        - Durum: {scenarios[active_scenario]['description']}
+        - Beklenen Etki: {scenarios[active_scenario]['impact']}
+        - Yorum: {scenarios[active_scenario]['interpretation']}
+        """
+        
+        return analysis_text
         
     except Exception as e:
         st.error(f"Hacim analizi hatası: {str(e)}")
-        return None
+        return "Hacim analizi yapılamadı. Veri kalitesini kontrol edin."
 
 def analyze_index_correlation(df, bist100_data):
     """BIST100 ile korelasyon analizi yapar"""
@@ -510,88 +514,137 @@ def analyze_index_correlation(df, bist100_data):
         strength = 'Güçlü' if abs(correlation) > 0.7 else 'Orta' if abs(correlation) > 0.4 else 'Zayıf'
         direction = 'Pozitif' if correlation > 0 else 'Negatif'
         
-        # Senaryolar
-        scenarios = {
-            'BIST100 Yükselirse': {
-                'probability': abs(correlation),
-                'expected_movement': 'Yükseliş' if correlation > 0 else 'Düşüş'
-            },
-            'BIST100 Düşerse': {
-                'probability': abs(correlation),
-                'expected_movement': 'Düşüş' if correlation > 0 else 'Yükseliş'
-            }
-        }
+        # Beta hesapla
+        beta = np.cov(df_returns, bist_returns)[0][1] / np.var(bist_returns)
         
-        return {
-            'correlation': correlation,
-            'recent_correlation': recent_correlation,
-            'strength': strength,
-            'direction': direction,
-            'scenarios': scenarios,
-            'description': f"""
-            **Korelasyon Analizi:**
-            - Genel Korelasyon: {correlation:.2f}
-            - Son 30 Gün Korelasyonu: {recent_correlation:.2f}
-            - Korelasyon Gücü: {strength}
-            - Korelasyon Yönü: {direction}
-            
-            **Olası Senaryolar:**
-            - BIST100 Yükselirse: %{abs(correlation)*100:.1f} olasılıkla {scenarios['BIST100 Yükselirse']['expected_movement']}
-            - BIST100 Düşerse: %{abs(correlation)*100:.1f} olasılıkla {scenarios['BIST100 Düşerse']['expected_movement']}
-            """
-        }
+        analysis_text = f"""
+        **🔄 BIST100 Korelasyon Analizi**
+        - Genel Korelasyon: {correlation:.2f}
+        - Son 30 Gün Korelasyonu: {recent_correlation:.2f}
+        - Korelasyon Gücü: {strength}
+        - Korelasyon Yönü: {direction}
+        - Beta Katsayısı: {beta:.2f}
+        
+        **📈 Olası Senaryolar:**
+        - BIST100 Yükselirse: %{abs(correlation)*100:.1f} olasılıkla {direction} yönde hareket
+        - BIST100 Düşerse: %{abs(correlation)*100:.1f} olasılıkla {direction} yönde hareket
+        
+        **💡 Yorum:**
+        - {'Hisse, piyasa ile güçlü bir ilişki gösteriyor' if abs(correlation) > 0.7 else
+          'Hisse, piyasa ile orta düzeyde ilişkili' if abs(correlation) > 0.4 else
+          'Hisse, piyasadan bağımsız hareket ediyor'}
+        - Beta {beta:.2f} > 1 ise hisse piyasadan daha oynak
+        - Beta {beta:.2f} < 1 ise hisse piyasadan daha az oynak
+        """
+        
+        return analysis_text
         
     except Exception as e:
         st.error(f"Endeks korelasyonu analizi hatası: {str(e)}")
-        return None
+        return "Endeks korelasyonu analizi yapılamadı. Veri kalitesini kontrol edin."
 
-def perform_statistical_analysis(df):
-    """İstatistiksel analiz yapar"""
+def detect_patterns(df):
+    """Teknik analiz örüntülerini tespit eder"""
     try:
-        # Temel istatistikler
-        returns = df['Daily_Return'].dropna()
-        mean_return = returns.mean()
-        std_dev = returns.std()
-        skewness = returns.skew()
+        patterns = []
+        close = df['close'].values
+        high = df['high'].values
+        low = df['low'].values
         
-        # Teknik göstergeler
-        rsi = df['RSI'].iloc[-1] if 'RSI' in df.columns else 50
-        macd = df['MACD'].iloc[-1] if 'MACD' in df.columns else 0
-        signal = df['Signal'].iloc[-1] if 'Signal' in df.columns else 0
+        # Son 5 günlük veriler
+        last_close = close[-5:]
+        last_high = high[-5:]
+        last_low = low[-5:]
         
-        # Durağanlık testi
-        try:
-            adf_test = adfuller(df['close'].dropna())
-            adf_pvalue = adf_test[1]
-        except:
-            adf_pvalue = 1.0
+        # Çift Tepe
+        if (last_high[-5] > last_high[-4] and last_high[-3] > last_high[-4] and
+            last_high[-3] < last_high[-2] and abs(last_high[-5] - last_high[-3]) < last_high[-5] * 0.02):
+            patterns.append(("Çift Tepe", "Düşüş", "Güçlü bir düşüş sinyali"))
+            
+        # Çift Dip
+        if (last_low[-5] < last_low[-4] and last_low[-3] < last_low[-4] and
+            last_low[-3] > last_low[-2] and abs(last_low[-5] - last_low[-3]) < last_low[-5] * 0.02):
+            patterns.append(("Çift Dip", "Yükseliş", "Güçlü bir yükseliş sinyali"))
+            
+        # Yükselen Üçgen
+        if (max(last_high) - min(last_high) < max(last_low) - min(last_low) and
+            last_close[-1] > last_close[-5]):
+            patterns.append(("Yükselen Üçgen", "Yükseliş", "Trend devamı beklenebilir"))
+            
+        # Alçalan Üçgen
+        if (max(last_high) - min(last_high) > max(last_low) - min(last_low) and
+            last_close[-1] < last_close[-5]):
+            patterns.append(("Alçalan Üçgen", "Düşüş", "Trend devamı beklenebilir"))
+            
+        if not patterns:
+            patterns.append(("Belirgin Örüntü Yok", "Nötr", "Net bir sinyal bulunmuyor"))
         
-        # Trend analizi
-        price_trend = 'Yükseliş' if df['close'].iloc[-1] > df['close'].iloc[-20] else 'Düşüş'
+        analysis_text = """
+        **📊 Teknik Örüntü Analizi**
+        """
         
-        return {
-            'Ortalama Getiri': mean_return,
-            'Standart Sapma': std_dev,
-            'Çarpıklık': skewness,
-            'RSI': rsi,
-            'MACD': macd,
-            'Signal': signal,
-            'ADF p-değeri': adf_pvalue,
-            'Fiyat Trendi': price_trend
-        }
+        for pattern, direction, comment in patterns:
+            analysis_text += f"""
+            - Örüntü: {pattern}
+            - Yön: {direction}
+            - Yorum: {comment}
+            """
+            
+        return analysis_text
         
     except Exception as e:
-        st.error(f"İstatistiksel analiz hatası: {str(e)}")
-        return {
-            'Ortalama Getiri': 0.0,
-            'Standart Sapma': 0.0,
-            'Çarpıklık': 0.0,
-            'RSI': 50.0,
-            'MACD': 0.0,
-            'Signal': 0.0,
-            'ADF p-değeri': 1.0,
-            'Fiyat Trendi': 'Belirsiz'
-        }
+        st.error(f"Örüntü analizi hatası: {str(e)}")
+        return "Örüntü analizi yapılamadı. Veri kalitesini kontrol edin."
+
+def detect_anomalies(df, window=20, std_dev=2):
+    """Anomalileri tespit eder ve analiz eder"""
+    try:
+        # Getiri ve hacim anomalileri
+        returns = df['Daily_Return']
+        volumes = df['volume']
+        
+        # Hareketli ortalama ve standart sapma
+        returns_mean = returns.rolling(window=window).mean()
+        returns_std = returns.rolling(window=window).std()
+        volume_mean = volumes.rolling(window=window).mean()
+        volume_std = volumes.rolling(window=window).std()
+        
+        # Anomali bantları
+        upper_return = returns_mean + (std_dev * returns_std)
+        lower_return = returns_mean - (std_dev * returns_std)
+        upper_volume = volume_mean + (std_dev * volume_std)
+        
+        # Anomalileri tespit et
+        return_anomalies = returns[(returns > upper_return) | (returns < lower_return)]
+        volume_anomalies = volumes[volumes > upper_volume]
+        
+        # Son 30 gündeki anomaliler
+        recent_return_anomalies = return_anomalies[-30:]
+        recent_volume_anomalies = volume_anomalies[-30:]
+        
+        analysis_text = f"""
+        **🔍 Anomali Analizi**
+        
+        **Getiri Anomalileri:**
+        - Toplam Anomali Sayısı: {len(return_anomalies)}
+        - Son 30 Gündeki Anomaliler: {len(recent_return_anomalies)}
+        - Ortalama Anomali Büyüklüğü: %{abs(return_anomalies).mean():.2f}
+        
+        **Hacim Anomalileri:**
+        - Toplam Anomali Sayısı: {len(volume_anomalies)}
+        - Son 30 Gündeki Anomaliler: {len(recent_volume_anomalies)}
+        - Ortalama Anomali Büyüklüğü: {(volume_anomalies / volume_mean).mean():.1f}x
+        
+        **💡 Yorum:**
+        - {'Yüksek anomali aktivitesi' if len(recent_return_anomalies) > 3 else 'Normal anomali aktivitesi'}
+        - {'Dikkat: Son dönemde artan anomaliler' if len(recent_return_anomalies) > len(return_anomalies)/6 else 'Anomali dağılımı normal'}
+        """
+        
+        return analysis_text
+        
+    except Exception as e:
+        st.error(f"Anomali analizi hatası: {str(e)}")
+        return "Anomali analizi yapılamadı. Veri kalitesini kontrol edin."
 
 def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
     """Analiz özetini ve yorumları oluşturur"""
@@ -778,42 +831,49 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
                          f"₺{predictions['Tahmin Edilen Kapanış']:.2f}",
                          f"%{predictions['Değişim']:.2f}")
             
-            # Risk metrikleri
-            st.subheader("📉 Risk Analizi")
-            risk_col1, risk_col2 = st.columns(2)
+            # Hacim analizi
+            st.subheader("📊 Hacim Analizi")
+            hacim_analizi = analyze_volume_scenarios(df)
+            st.write(hacim_analizi)
             
+            # BIST100 korelasyonu
+            if 'Endeks Korelasyonu' in predictions:
+                st.subheader("🔄 BIST100 Korelasyonu")
+                korelasyon_analizi = analyze_index_correlation(df, predictions['Endeks Korelasyonu'])
+                st.write(korelasyon_analizi)
+            
+            # Örüntü analizi
+            st.subheader("📈 Teknik Örüntüler")
+            oruntu_analizi = detect_patterns(df)
+            st.write(oruntu_analizi)
+            
+            # Anomali analizi
+            st.subheader("🔍 Anomaliler")
+            anomali_analizi = detect_anomalies(df)
+            st.write(anomali_analizi)
+            
+            # Risk metrikleri
+            st.subheader("⚠️ Risk Analizi")
+            risk_col1, risk_col2 = st.columns(2)
             with risk_col1:
                 st.write("**Temel Risk Metrikleri:**")
                 st.write(f"- Volatilite: %{risk_metrics['Volatilite (%)']:.2f}")
                 st.write(f"- VaR (95): %{risk_metrics['VaR_95 (%)']:.2f}")
                 st.write(f"- Sharpe Oranı: {risk_metrics['Sharpe Oranı']:.2f}")
-                
             with risk_col2:
                 st.write("**İleri Risk Metrikleri:**")
                 st.write(f"- Maximum Drawdown: %{risk_metrics['Max Drawdown (%)']:.2f}")
                 st.write(f"- Ani Yükseliş Riski: %{risk_metrics['Ani Yükseliş Riski (%)']:.2f}")
                 st.write(f"- Ani Düşüş Riski: %{risk_metrics['Ani Düşüş Riski (%)']:.2f}")
             
-            # Hacim analizi
-            st.subheader("📊 Hacim Analizi")
-            if 'Hacim Senaryosu' in predictions:
-                st.write(predictions['Hacim Senaryosu'])
-            
-            # Endeks korelasyonu
-            if 'Endeks Korelasyonu' in predictions:
-                st.subheader("🔄 BIST100 Korelasyonu")
-                st.write(predictions['Endeks Korelasyonu'])
-            
             # İstatistiksel analiz
-            st.subheader("📈 İstatistiksel Analiz")
+            st.subheader("📊 İstatistiksel Analiz")
             stats_col1, stats_col2 = st.columns(2)
-            
             with stats_col1:
                 st.write("**Temel İstatistikler:**")
                 st.write(f"- Ortalama Getiri: %{stats_results['Ortalama Getiri']:.2f}")
                 st.write(f"- Standart Sapma: %{stats_results['Standart Sapma']:.2f}")
                 st.write(f"- Çarpıklık: {stats_results['Çarpıklık']:.2f}")
-                
             with stats_col2:
                 st.write("**Trend Göstergeleri:**")
                 st.write(f"- RSI: {stats_results['RSI']:.2f}")
@@ -822,34 +882,6 @@ def create_comprehensive_report(hisse_adi, df, summary, risk_metrics, stats_resu
             
             # Genel görünüm ve öneriler
             st.subheader("🎯 Genel Görünüm ve Öneriler")
-            
-            # Alım-satım seviyeleri
-            level_col1, level_col2 = st.columns(2)
-            with level_col1:
-                st.write("**Önerilen İşlem Seviyeleri:**")
-                st.write(f"- Stop Loss: ₺{risk_metrics['Stop Loss']:.2f}")
-                st.write(f"- Take Profit: ₺{risk_metrics['Take Profit']:.2f}")
-                
-            with level_col2:
-                st.write("**İşlem Önerisi:**")
-                current_rsi = stats_results['RSI']
-                current_price = df['close'].iloc[-1]
-                
-                # İşlem önerisi oluştur
-                if current_rsi > 70:
-                    st.error("⛔ AŞIRI ALIM - Satış Fırsatı")
-                elif current_rsi < 30:
-                    st.success("💹 AŞIRI SATIM - Alım Fırsatı")
-                else:
-                    if predictions['Değişim'] > 0 and stats_results['MACD'] > stats_results['Signal']:
-                        st.success("✅ AL")
-                    elif predictions['Değişim'] < 0 and stats_results['MACD'] < stats_results['Signal']:
-                        st.error("⛔ SAT")
-                    else:
-                        st.warning("⚠️ TUT")
-            
-            # Özet ve notlar
-            st.subheader("📝 Özet ve Önemli Notlar")
             st.write(summary)
             
             # Uyarı notu
@@ -995,7 +1027,7 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         # Maximum Drawdown hesaplama
         cumulative_returns = (1 + df['Daily_Return']).cumprod()
         rolling_max = cumulative_returns.expanding().max()
-        drawdowns = (cumulative_returns - rolling_max) / rolling_max
+        drawdowns = ((cumulative_returns - rolling_max) / rolling_max) * 100
         max_drawdown = drawdowns.min() * 100
         
         risk_cols = st.columns(3)
@@ -1454,3 +1486,210 @@ with main_container:
         
         else:
             st.info("Lütfen bir dosya yükleyin.")
+
+def analyze_volume_scenarios(df):
+    """Hacim senaryolarını analiz eder"""
+    try:
+        # Son 30 günlük ortalama hacim
+        avg_volume = df['volume'].tail(30).mean()
+        current_volume = df['volume'].iloc[-1]
+        volume_ratio = current_volume / avg_volume
+        
+        # Hacim senaryoları ve yorumları
+        scenarios = {
+            'Yüksek Hacim': {
+                'threshold': 1.5,
+                'description': 'Hacim ortalamanın çok üzerinde',
+                'impact': 'Güçlü fiyat hareketi beklenir',
+                'interpretation': 'Yüksek hacim, piyasada güçlü bir ilgi olduğunu gösterir'
+            },
+            'Normal Hacim': {
+                'threshold': 0.75,
+                'description': 'Hacim normal seviyelerde',
+                'impact': 'Normal fiyat hareketi beklenir',
+                'interpretation': 'Normal hacim, piyasanın dengeli olduğunu gösterir'
+            },
+            'Düşük Hacim': {
+                'threshold': 0,
+                'description': 'Hacim ortalamanın altında',
+                'impact': 'Zayıf fiyat hareketi beklenir',
+                'interpretation': 'Düşük hacim, piyasada ilginin azaldığını gösterir'
+            }
+        }
+        
+        # Aktif senaryoyu belirle
+        active_scenario = None
+        for scenario, details in scenarios.items():
+            if volume_ratio >= details['threshold']:
+                active_scenario = scenario
+                break
+        
+        # Hacim trendi
+        volume_trend = df['volume'].tail(5).mean() > df['volume'].tail(20).mean()
+        trend_text = "Yükseliş" if volume_trend else "Düşüş"
+        
+        analysis_text = f"""
+        **📊 Hacim Analizi**
+        - Güncel Hacim: {current_volume:,.0f}
+        - 30 Günlük Ortalama: {avg_volume:,.0f}
+        - Hacim/Ortalama Oranı: {volume_ratio:.2f}x
+        - Hacim Trendi: {trend_text}
+        
+        **🔍 Aktif Senaryo: {active_scenario}**
+        - Durum: {scenarios[active_scenario]['description']}
+        - Beklenen Etki: {scenarios[active_scenario]['impact']}
+        - Yorum: {scenarios[active_scenario]['interpretation']}
+        """
+        
+        return analysis_text
+        
+    except Exception as e:
+        st.error(f"Hacim analizi hatası: {str(e)}")
+        return "Hacim analizi yapılamadı. Veri kalitesini kontrol edin."
+
+def analyze_index_correlation(df, bist100_data):
+    """BIST100 ile korelasyon analizi yapar"""
+    try:
+        # Getirileri hesapla
+        df_returns = df['Daily_Return']
+        bist_returns = bist100_data['Daily_Return']
+        
+        # Korelasyon hesapla
+        correlation = df_returns.corr(bist_returns)
+        recent_correlation = df_returns.tail(30).corr(bist_returns.tail(30))
+        
+        # Korelasyon gücü ve yönü
+        strength = 'Güçlü' if abs(correlation) > 0.7 else 'Orta' if abs(correlation) > 0.4 else 'Zayıf'
+        direction = 'Pozitif' if correlation > 0 else 'Negatif'
+        
+        # Beta hesapla
+        beta = np.cov(df_returns, bist_returns)[0][1] / np.var(bist_returns)
+        
+        analysis_text = f"""
+        **🔄 BIST100 Korelasyon Analizi**
+        - Genel Korelasyon: {correlation:.2f}
+        - Son 30 Gün Korelasyonu: {recent_correlation:.2f}
+        - Korelasyon Gücü: {strength}
+        - Korelasyon Yönü: {direction}
+        - Beta Katsayısı: {beta:.2f}
+        
+        **📈 Olası Senaryolar:**
+        - BIST100 Yükselirse: %{abs(correlation)*100:.1f} olasılıkla {direction} yönde hareket
+        - BIST100 Düşerse: %{abs(correlation)*100:.1f} olasılıkla {direction} yönde hareket
+        
+        **💡 Yorum:**
+        - {'Hisse, piyasa ile güçlü bir ilişki gösteriyor' if abs(correlation) > 0.7 else
+          'Hisse, piyasa ile orta düzeyde ilişkili' if abs(correlation) > 0.4 else
+          'Hisse, piyasadan bağımsız hareket ediyor'}
+        - Beta {beta:.2f} > 1 ise hisse piyasadan daha oynak
+        - Beta {beta:.2f} < 1 ise hisse piyasadan daha az oynak
+        """
+        
+        return analysis_text
+        
+    except Exception as e:
+        st.error(f"Endeks korelasyonu analizi hatası: {str(e)}")
+        return "Endeks korelasyonu analizi yapılamadı. Veri kalitesini kontrol edin."
+
+def detect_patterns(df):
+    """Teknik analiz örüntülerini tespit eder"""
+    try:
+        patterns = []
+        close = df['close'].values
+        high = df['high'].values
+        low = df['low'].values
+        
+        # Son 5 günlük veriler
+        last_close = close[-5:]
+        last_high = high[-5:]
+        last_low = low[-5:]
+        
+        # Çift Tepe
+        if (last_high[-5] > last_high[-4] and last_high[-3] > last_high[-4] and
+            last_high[-3] < last_high[-2] and abs(last_high[-5] - last_high[-3]) < last_high[-5] * 0.02):
+            patterns.append(("Çift Tepe", "Düşüş", "Güçlü bir düşüş sinyali"))
+            
+        # Çift Dip
+        if (last_low[-5] < last_low[-4] and last_low[-3] < last_low[-4] and
+            last_low[-3] > last_low[-2] and abs(last_low[-5] - last_low[-3]) < last_low[-5] * 0.02):
+            patterns.append(("Çift Dip", "Yükseliş", "Güçlü bir yükseliş sinyali"))
+            
+        # Yükselen Üçgen
+        if (max(last_high) - min(last_high) < max(last_low) - min(last_low) and
+            last_close[-1] > last_close[-5]):
+            patterns.append(("Yükselen Üçgen", "Yükseliş", "Trend devamı beklenebilir"))
+            
+        # Alçalan Üçgen
+        if (max(last_high) - min(last_high) > max(last_low) - min(last_low) and
+            last_close[-1] < last_close[-5]):
+            patterns.append(("Alçalan Üçgen", "Düşüş", "Trend devamı beklenebilir"))
+            
+        if not patterns:
+            patterns.append(("Belirgin Örüntü Yok", "Nötr", "Net bir sinyal bulunmuyor"))
+        
+        analysis_text = """
+        **📊 Teknik Örüntü Analizi**
+        """
+        
+        for pattern, direction, comment in patterns:
+            analysis_text += f"""
+            - Örüntü: {pattern}
+            - Yön: {direction}
+            - Yorum: {comment}
+            """
+            
+        return analysis_text
+        
+    except Exception as e:
+        st.error(f"Örüntü analizi hatası: {str(e)}")
+        return "Örüntü analizi yapılamadı. Veri kalitesini kontrol edin."
+
+def detect_anomalies(df, window=20, std_dev=2):
+    """Anomalileri tespit eder ve analiz eder"""
+    try:
+        # Getiri ve hacim anomalileri
+        returns = df['Daily_Return']
+        volumes = df['volume']
+        
+        # Hareketli ortalama ve standart sapma
+        returns_mean = returns.rolling(window=window).mean()
+        returns_std = returns.rolling(window=window).std()
+        volume_mean = volumes.rolling(window=window).mean()
+        volume_std = volumes.rolling(window=window).std()
+        
+        # Anomali bantları
+        upper_return = returns_mean + (std_dev * returns_std)
+        lower_return = returns_mean - (std_dev * returns_std)
+        upper_volume = volume_mean + (std_dev * volume_std)
+        
+        # Anomalileri tespit et
+        return_anomalies = returns[(returns > upper_return) | (returns < lower_return)]
+        volume_anomalies = volumes[volumes > upper_volume]
+        
+        # Son 30 gündeki anomaliler
+        recent_return_anomalies = return_anomalies[-30:]
+        recent_volume_anomalies = volume_anomalies[-30:]
+        
+        analysis_text = f"""
+        **🔍 Anomali Analizi**
+        
+        **Getiri Anomalileri:**
+        - Toplam Anomali Sayısı: {len(return_anomalies)}
+        - Son 30 Gündeki Anomaliler: {len(recent_return_anomalies)}
+        - Ortalama Anomali Büyüklüğü: %{abs(return_anomalies).mean():.2f}
+        
+        **Hacim Anomalileri:**
+        - Toplam Anomali Sayısı: {len(volume_anomalies)}
+        - Son 30 Gündeki Anomaliler: {len(recent_volume_anomalies)}
+        - Ortalama Anomali Büyüklüğü: {(volume_anomalies / volume_mean).mean():.1f}x
+        
+        **💡 Yorum:**
+        - {'Yüksek anomali aktivitesi' if len(recent_return_anomalies) > 3 else 'Normal anomali aktivitesi'}
+        - {'Dikkat: Son dönemde artan anomaliler' if len(recent_return_anomalies) > len(return_anomalies)/6 else 'Anomali dağılımı normal'}
+        """
+        
+        return analysis_text
+        
+    except Exception as e:
+        st.error(f"Anomali analizi hatası: {str(e)}")
+        return "Anomali analizi yapılamadı. Veri kalitesini kontrol edin."
