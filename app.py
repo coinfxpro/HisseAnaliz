@@ -1448,8 +1448,8 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
         3. Hedef Fiyat: ₺{predictions['Tahmin Edilen Kapanış']:.2f}
         
         **⚠️ Önemli Uyarılar:**
-        1. {f'⚠️ Yüksek risk! Sıkı risk yönetimi şart!' if abs(var_95) > 3 else '✅ Normal risk yönetimi yeterli'}
-        2. {f'⚠️ RSI aşırı {"alım" if rsi > 70 else "satım"} bölgesinde!' if rsi > 70 or rsi < 30 else '✅ Teknik göstergeler normal'}
+        1. {'⚠️ Yüksek risk! Sıkı risk yönetimi şart!' if abs(var_95) > 3 else '✅ Normal risk yönetimi yeterli'}
+        2. {'⚠️ RSI aşırı alım bölgesinde!' if rsi > 70 else '⚠️ RSI aşırı satım bölgesinde!' if rsi < 30 else '✅ Teknik göstergeler normal'}
         3. {'⚠️ Anormal fiyat hareketlerine dikkat!' if not outliers.empty else '✅ Fiyat hareketleri normal'}
         """)
         
