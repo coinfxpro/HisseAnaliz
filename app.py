@@ -1308,6 +1308,9 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
             # Fiyat ve hacim anomalilerinin kesişimi
             combined_anomalies = pd.merge(outliers, volume_outliers, left_index=True, right_index=True, how='inner')
             
+            anomaly_dates = outliers.sort_values('Daily_Return', ascending=False)[['Daily_Return']].head().apply(
+                lambda x: f"- {x.name.strftime('%d/%m/%Y')}: %{x['Daily_Return']*100:.2f}", axis=1
+            ).str.cat(sep='\n')
             st.warning(f"""
             ⚠️ **Anomali Analizi**
             
@@ -1318,7 +1321,7 @@ def create_statistical_report(hisse_adi, df, stats_results, predictions, content
             - Son 30 Günde: {len(recent_outliers)} adet
             
             **🔍 Önemli Anomali Tarihleri:**
-            {outliers.sort_values('Daily_Return', ascending=False)[['Daily_Return']].head().apply(lambda x: f"- {x.name.strftime('%d/%m/%Y')}: %{x['Daily_Return']*100:.2f}", axis=1).str.cat(sep='\\n')}
+            {anomaly_dates}
             
             **📈 Hacim Anomalileri ile Kesişim:**
             - {len(combined_anomalies)} adet fiyat hareketi yüksek hacim ile destekleniyor
