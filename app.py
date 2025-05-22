@@ -303,45 +303,48 @@ def calculate_risk_metrics(df):
 def detect_anomalies(df, window=20, std_dev=2):
     """Anomalileri tespit eder ve analiz eder"""
     try:
-        returns = df['Daily_Return'].copy()
+        # Getiri ve hacim anomalileri
+        returns = df['Daily_Return']
+        volumes = df['volume']
         
-        # Rolling ortalama ve standart sapma
-        rolling_mean = returns.rolling(window=window).mean()
-        rolling_std = returns.rolling(window=window).std()
+        # Hareketli ortalama ve standart sapma
+        returns_mean = returns.rolling(window=window).mean()
+        returns_std = returns.rolling(window=window).std()
+        volume_mean = volumes.rolling(window=window).mean()
+        volume_std = volumes.rolling(window=window).std()
         
         # Anomali bantları
-        upper_bound = rolling_mean + (std_dev * rolling_std)
-        lower_bound = rolling_mean - (std_dev * rolling_std)
+        upper_return = returns_mean + (std_dev * returns_std)
+        lower_return = returns_mean - (std_dev * returns_std)
+        upper_volume = volume_mean + (std_dev * volume_std)
         
-        # Aykırı değerleri temizle (çok ekstrem değerleri)
-        returns = returns[np.abs(returns) < returns.mean() + 3 * returns.std()]
+        # Anomalileri tespit et
+        return_anomalies = returns[(returns > upper_return) | (returns < lower_return)]
+        volume_anomalies = volumes[volumes > upper_volume]
         
-        # Anomalileri belirle
-        anomalies_high = returns[returns > upper_bound]
-        anomalies_low = returns[returns < lower_bound]
+        # Son 30 gündeki anomaliler
+        recent_return_anomalies = return_anomalies[-30:]
+        recent_volume_anomalies = volume_anomalies[-30:]
         
-        # Son 30 günlük anomaliler
-        last_30_days = returns[-30:]
-        recent_anomalies = len(last_30_days[
-            (last_30_days > upper_bound[-30:]) | 
-            (last_30_days < lower_bound[-30:])
-        ])
+        analysis_text = f"""
+        **🔍 Anomali Analizi**
         
-        # Önemli anomali tarihlerini bul (en yüksek 5 pozitif ve negatif)
-        top_anomalies = returns[returns > upper_bound].nlargest(5)
-        bottom_anomalies = returns[returns < lower_bound].nsmallest(5)
+        **Getiri Anomalileri:**
+        - Toplam Anomali Sayısı: {len(return_anomalies)} adet
+        - Son 30 Gündeki Anomaliler: {len(recent_return_anomalies)} adet
+        - Ortalama Anomali Büyüklüğü: %{abs(return_anomalies).mean():.2f}
         
-        # Anomali istatistikleri
-        stats = {
-            'positive_count': len(anomalies_high),
-            'negative_count': len(anomalies_low),
-            'positive_mean': anomalies_high.mean() if len(anomalies_high) > 0 else 0,
-            'negative_mean': anomalies_low.mean() if len(anomalies_low) > 0 else 0,
-            'recent_anomalies': recent_anomalies,
-            'important_dates': pd.concat([top_anomalies, bottom_anomalies]).sort_values(ascending=False)
-        }
+        **Hacim Anomalileri:**
+        - Toplam Anomali Sayısı: {len(volume_anomalies)} adet
+        - Son 30 Gündeki Anomaliler: {len(recent_volume_anomalies)} adet
+        - Ortalama Anomali Büyüklüğü: {(volume_anomalies / volume_mean).mean():.1f}x
         
-        return format_anomaly_report(stats)
+        **💡 Yorum:**
+        - {'Yüksek anomali aktivitesi' if len(recent_return_anomalies) > 3 else 'Normal anomali aktivitesi'}
+        - {'Dikkat: Son dönemde artan anomaliler' if len(recent_return_anomalies) > len(return_anomalies)/6 else 'Anomali dağılımı normal'}
+        """
+        
+        return analysis_text
         
     except Exception as e:
         st.error(f"Anomali analizi hatası: {str(e)}")
@@ -782,56 +785,6 @@ def detect_patterns(df):
     except Exception as e:
         st.error(f"Örüntü analizi hatası: {str(e)}")
         return "Örüntü analizi yapılamadı. Veri kalitesini kontrol edin."
-
-def detect_anomalies(df, window=20, std_dev=2):
-    """Anomalileri tespit eder ve analiz eder"""
-    try:
-        # Getiri ve hacim anomalileri
-        returns = df['Daily_Return']
-        volumes = df['volume']
-        
-        # Hareketli ortalama ve standart sapma
-        returns_mean = returns.rolling(window=window).mean()
-        returns_std = returns.rolling(window=window).std()
-        volume_mean = volumes.rolling(window=window).mean()
-        volume_std = volumes.rolling(window=window).std()
-        
-        # Anomali bantları
-        upper_return = returns_mean + (std_dev * returns_std)
-        lower_return = returns_mean - (std_dev * returns_std)
-        upper_volume = volume_mean + (std_dev * volume_std)
-        
-        # Anomalileri tespit et
-        return_anomalies = returns[(returns > upper_return) | (returns < lower_return)]
-        volume_anomalies = volumes[volumes > upper_volume]
-        
-        # Son 30 gündeki anomaliler
-        recent_return_anomalies = return_anomalies[-30:]
-        recent_volume_anomalies = volume_anomalies[-30:]
-        
-        analysis_text = f"""
-        **🔍 Anomali Analizi**
-        
-        **Getiri Anomalileri:**
-        - Toplam Anomali Sayısı: {len(return_anomalies)}
-        - Son 30 Gündeki Anomaliler: {len(recent_return_anomalies)}
-        - Ortalama Anomali Büyüklüğü: %{abs(return_anomalies).mean():.2f}
-        
-        **Hacim Anomalileri:**
-        - Toplam Anomali Sayısı: {len(volume_anomalies)}
-        - Son 30 Gündeki Anomaliler: {len(recent_volume_anomalies)}
-        - Ortalama Anomali Büyüklüğü: {(volume_anomalies / volume_mean).mean():.1f}x
-        
-        **💡 Yorum:**
-        - {'Yüksek anomali aktivitesi' if len(recent_return_anomalies) > 3 else 'Normal anomali aktivitesi'}
-        - {'Dikkat: Son dönemde artan anomaliler' if len(recent_return_anomalies) > len(return_anomalies)/6 else 'Anomali dağılımı normal'}
-        """
-        
-        return analysis_text
-        
-    except Exception as e:
-        st.error(f"Anomali analizi hatası: {str(e)}")
-        return "Anomali analizi yapılamadı. Veri kalitesini kontrol edin."
 
 def generate_analysis_summary(df, predictions, risk_metrics, stats_results):
     """Analiz özetini ve yorumları oluşturur"""
